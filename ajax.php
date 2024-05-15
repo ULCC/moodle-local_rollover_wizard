@@ -10,6 +10,7 @@ require_once '../../config.php';
 require_once $CFG->dirroot . '/course/lib.php';
 require_once $CFG->dirroot . '/local/rollover_wizard/lib.php';
 require_once $CFG->dirroot . '/lib/formslib.php';
+require_once $CFG->libdir . '/cronlib.php';
 
 global $CFG, $DB, $USER;
 
@@ -39,9 +40,9 @@ if (confirm_sesskey()) {
             $mform->addElement('radio', 'content_option', '', get_string('content_option2','local_rollover_wizard'), 'previouscourse');
             
             $html = '<h2>Import Course</h2>'.'<p>Do you want to start from a blank template or import content from a previous course ?</p>';
-            $warning = null;
+            $warning = local_rollover_wizard_verify_course(null, ($_SESSION['local_rollover_wizard']['target_course'])->id, false);
             if(!empty($warning)){
-                $warning = local_rollover_wizard_verify_course(null, ($_SESSION['local_rollover_wizard']['target_course'])->id, false);
+                $warning = "<div class='alert alert-warning'>".$warning."</div>";
             }
             $html.='<div class="alert-container">'.$warning.'</div>';
             $html.= $mform->toHtml();
@@ -328,8 +329,10 @@ if (confirm_sesskey()) {
                 $target_course = $session_data['target_course'];
                 $selected_activity = $session_data['selected_activity'];
                 $processed_activity = [];
+                $cmids = [];
                 foreach($selected_activity as $activity){
                     $processed_activity[$activity->section][] = $activity->value;
+                    $cmids[] = $activity->value;
                 }
                 $source_course = $session_data['source_course'];
 
@@ -340,8 +343,12 @@ if (confirm_sesskey()) {
                 .'<p></p>'
                 .'<div class="alert-container"></div>';
                 $html .= "<div class='d-flex justify-content-center align-items-center w-100 h-100'>";
-                $html .= "<p>The content import has completed successfully</p>";
+                $html .= "<div class='d-flex flex-column rollover-finish-notification'>";                
+                $html .= "<p>Rolling Over Content Course...</p>";
+                $html .= '<div class="progress" style="min-width: 100%;"><div class="progress-bar progress-bar-striped" role="progressbar" style="width: 0;" id="rollover-progress-bar"></div></div>';
                 $html .= "</div>";
+                $html .= "</div>";
+
                 display_result(200,['html' => $html]);
             }
         }
@@ -386,7 +393,89 @@ if (confirm_sesskey()) {
         $_SESSION['local_rollover_wizard'] = $session_data;
         display_result(200,['data' => $result]);
     }
-    // local content rollover code
+    else if($action == 'startrollover'){
+        $mode = required_param('mode', PARAM_TEXT);
+        if($mode == 'previouscourse'){
+            
+            $setting = get_config('local_rollover_wizard');
+
+            $excluded_activitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
+            $excluded_activitytypes = array_map('trim', $excluded_activitytypes);
+
+            $session_data = $_SESSION['local_rollover_wizard'];
+            $target_course = $session_data['target_course'];
+            $selected_activity = $session_data['selected_activity'];
+            $processed_activity = [];
+            $cmids = [];
+            foreach($selected_activity as $activity){
+                $processed_activity[$activity->section][] = $activity->value;
+                $cmids[] = $activity->value;
+            }
+            $source_course = $session_data['source_course'];
+            $taskid = time();
+            $newrollover = new \stdClass();
+            $newrollover->taskid = $taskid;
+            $newrollover->rollovermode = $mode;
+            $newrollover->instantexecute = 1; // Temporary
+            $newrollover->sourcecourseid = $source_course->id;
+            $newrollover->targetcourseid = $target_course->id;
+            $newrollover->templatecourse = null;
+            $newrollover->status = ROLLOVER_WIZARD_NOTSTARTED;
+            $newrollover->userid = $USER->id;
+            $newrollover->note = '';
+            $newrollover->cmids = json_encode($cmids);
+            $newrollover->rolledovercmids = null;
+            $newrollover->excludedactivitytypes = json_encode($excluded_activitytypes);
+            $newrollover->timecreated = time();
+            $newrollover->timeupdated = time();
+            $DB->insert_record('local_rollover_wizard_log', $newrollover);
+
+            $plugin_name = 'local_rollover_wizard';
+            $rollingid_config = 'taskid';
+            set_config($rollingid_config, $taskid, $plugin_name);
+            
+            display_result(200,['taskid' => $taskid]);
+        }
+    }
+    else if ($action == 'runrollovertask'){
+
+        $plugin_name = 'local_rollover_wizard';
+        $rollingid_config = 'taskid';
+        $taskid = get_config($plugin_name, $taskid_config);
+
+        if(empty($taskid)){
+            return;
+        }
+
+        $taskname = 'local_rollover_wizard\task\execute_rollover';
+
+        $task = \core\task\manager::get_scheduled_task($taskname);
+        if (!$task) {
+            print_error('cannotfindinfo', 'error', $taskname);
+        }
+
+        // Run the specified task (this will output an error if it doesn't exist).
+        \core\task\manager::run_from_cli($task);
+
+    }
+    else if ($action == 'checkrolloverstate') {
+
+        $taskid = required_param('taskid', PARAM_INT);
+
+        $record = $DB->get_record('local_rollover_wizard_log', ['taskid' => $taskid]);
+        $cmids = json_decode($record->cmids);
+        $rolledovercmids = explode(',', $record->rolledovercmids);
+        $total = count($cmids);
+        $done = count($rolledovercmids);
+        $percentage = 1;
+        if($done > 0){
+            $percentage = ($done / $total) * 100;
+        }
+
+        $status = $record->status;
+        $message = 'The content import has completed successfully';
+        display_result(200,['taskid' => $taskid, 'percentage' => $percentage,'rolloverstatus' => $status, 'message' => $message]);
+    }
     else if ($action == 'retrievecourses') {
         $categoryid = required_param('categoryid', PARAM_INT);
         $courseid = optional_param('courseid', 0, PARAM_INT);

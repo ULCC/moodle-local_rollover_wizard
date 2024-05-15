@@ -18,7 +18,8 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
     var wizard_selected_activity = [];
     var canceltext = 'Cancel';
     var nexttext = 'Next';
-    var wizard_max_step = 10;
+    var wizard_max_step = 6;
+    var wizard_taskid = null;
     $(document).ready(function(){
         $('.nav-item').on('click', function(e){
             if($(this).data('key') == 'rolloverwizard'){
@@ -42,9 +43,9 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
 
                     var html_footer = '<div style="margin-left: auto;margin-right:auto;width:90%;">'
                     +'<div class="d-flex justify-content-between align-items-center">'
-                    +'    <button type="button" id="wizard_cancel_button" class="btn btn-secondary">'+canceltext+'</button>'
+                    +'    <div id="wizard_cancel_container"><button type="button" id="wizard_cancel_button" class="btn btn-secondary">'+canceltext+'</button></div>'
                     +'    <div class="progress" style="min-width: 60%;"><div class="progress-bar progress-bar-striped" role="progressbar" style="width: 0;" id="wizard-progress-bar"></div></div>'
-                    +'    <button type="button" id="wizard_next_button" class="btn btn-primary">'+nexttext+'</button>'
+                    +'    <div id="wizard_next_container"><button type="button" id="wizard_next_button" class="btn btn-primary">'+nexttext+'</button></div>'
                     +'</div>'
                     +'</div>';
                     main_modal = ModalFactory.create({
@@ -171,9 +172,12 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
         $(root).find('#btn-select-filter').on('click', function(){
             modalFilterActivity();
         });
-        var progress_width = 0;
+        var progress_width = 1;
         if(wizard_step > 1){
             progress_width = (wizard_step / wizard_max_step) * 100;
+        }
+        else{
+            progress_width = 10;
         }
         $(root).find('#wizard-progress-bar').css('width', progress_width+"%");
         main_modal.show();
@@ -277,6 +281,10 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                 modalConfirmProcess();
             }
         }
+        if(wizard_step == 5){
+            main_modal.destroy();
+            window.location.reload();
+        }
     }
     function ajax(action = '', parameters = {}){
         var base_parameter = {action: action, sesskey: M.cfg.sesskey};
@@ -356,13 +364,16 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
     }
     function modalConfirmProcess(){
         var html_body = '';
-        html_body+="<div class='container'>"
+        html_body+="<div class='container' id='container-notif'>"
         html_body+="<p>The import process will start immediately</p>";
         html_body+="<p>Do you want to proceed ?</p>";
         html_body+="<div class='d-flex justify-content-between'>";
         html_body+="<button type='button' class='btn btn-secondary' id='btn-cancel-process'>Cancel</button>";
         html_body+="<button type='button' class='btn btn-primary' id='btn-confirm-process'>Confirm</button>";
         html_body+="</div>";
+        html_body+="</div>";
+        html_body+="<div class='hide' id='container-loading'>";
+        html_body+='<span style="font-size: 28px; display: block; margin: 0 auto; text-align: center;"><i class="fa fa-spin fa-spinner"></span>';
         html_body+="</div>";
         ModalFactory.create({
             large: true,
@@ -379,15 +390,69 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                     modal.destroy();
                 });
                 $(root).find('#btn-confirm-process').on('click', function(){
-                    // alert('Confirm');
-                    modal.destroy();
-                    wizard_step++;
-                    modalChangeView();
+                    $(root).find('#container-notif').hide();
+                    $(root).find('#container-loading').show();
+                    var promise = ajax('startrollover', {mode: wizard_mode});
+                    promise.then(function(result){
+                        if (result.length != 0) {
+                            var result = JSON.parse(result);
+                            if(result.status == 200){
+                                wizard_taskid = result.data.taskid;
+                                startRollover(modal);
+                            }
+                        }
+                    });
                 });
                 $(root).find('.modal-dialog').removeClass('modal-lg');
                 $(root).find('.modal-dialog').addClass('modal-sm');
                 modal.show();
             });
+    }
+    function startRollover(modal){
+        wizard_step++;
+        modalChangeView();
+        modal.destroy();
+        
+        var root = main_modal.getRoot();
+                        
+        $(root).find('#wizard_cancel_container').hide();
+        $(root).find('#wizard_next_container').hide();
+        if(wizard_mode == 'previouscourse'){
+            var promise = ajax('runrollovertask');
+            var interval = setInterval(function() {
+                $.ajax({
+                    type: 'POST',
+                    url: M.cfg.wwwroot + '/local/rollover_wizard/ajax.php',
+                    data: { action: 'checkrolloverstate', taskid: wizard_taskid, sesskey: M.cfg.sesskey },
+                    beforeSend: function () {
+                    },
+                    success: function (response) {
+                        if(response.length != 0) {
+                            var result = JSON.parse(response);
+                            if(result.status == 200){
+                                var root = main_modal.getRoot();
+                                var data = result.data;
+                                var percentage = parseInt(data.percentage);
+                                if(data.rolloverstatus != 'Successful' && data.rolloverstatus != 'Unsuccessful'){
+                                    $(root).find('#rollover-progress-bar').css('width', percentage+"%");
+                                }
+                                else{
+                                    clearInterval(interval);
+                                    $(root).find('.rollover-finish-notification').html(data.message);
+                                    $(root).find('#wizard_next_container').show();
+                                    $(root).find('#wizard_next_button').html('Finish');
+                                }
+                            }
+                        }
+                    }
+                });
+            }, 1000);
+        }
+    }
+    function checkRolloverState(){
+        var deferrer = $.Deferred();
+        return deferrer;
+
     }
     // Content Rollover Code
     

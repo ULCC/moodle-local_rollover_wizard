@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/rollover_wizard/db" VERSION="20240514" COMMENT="XMLDB file for Moodle local/rollover_wizard"
+<XMLDB PATH="local/rollover_wizard/db" VERSION="20240515" COMMENT="XMLDB file for Moodle local/rollover_wizard"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -15,7 +15,7 @@
         <FIELD NAME="templatecourse" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="status" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
-        <FIELD NAME="note" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="note" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="cmids" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="rolledovercmids" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="excludedactivitytypes" TYPE="text" NOTNULL="false" SEQUENCE="false"/>

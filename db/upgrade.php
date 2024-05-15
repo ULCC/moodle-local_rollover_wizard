@@ -119,6 +119,19 @@ function xmldb_local_rollover_wizard_upgrade($oldversion) {
         // Rollover_wizard savepoint reached.
         upgrade_plugin_savepoint(true, 2024041517, 'local', 'rollover_wizard');
     }
+    if ($oldversion < 2024041518) {
+
+        // Changing type of field note on table local_rollover_wizard_log to text.
+        $table = new xmldb_table('local_rollover_wizard_log');
+        $field = new xmldb_field('note', XMLDB_TYPE_TEXT, null, null, null, null, null, 'userid');
+
+        // Launch change of type for field note.
+        $dbman->change_field_type($table, $field);
+
+        // Rollover_wizard savepoint reached.
+        upgrade_plugin_savepoint(true, 2024041518, 'local', 'rollover_wizard');
+    }
+
 
     return true;
 }

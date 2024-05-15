@@ -58,7 +58,7 @@ function local_rollover_wizard_verify_course($sourcecourseid, $targetcourseid, $
     $warnings = '';
     $warningcount = 0;
     $sql = "SELECT DISTINCT targetcourseid, timecreated, userid
-            FROM {local_rollover_wizard_log} WHERE status = 'Successful'
+            FROM {local_rollover_wizard_log} WHERE status IN('Successful', 'Partly-Successful')
             GROUP BY targetcourseid";
     $rolledover_targetcourses = $DB->get_records_sql($sql);
     $rolledover_targetcourse_keys = array_keys($rolledover_targetcourses);
@@ -129,7 +129,7 @@ function local_rollover_wizard_executerollover()
     $excluded_activitytypes = array_map('trim', $excluded_activitytypes);
     // $teacherroles_to_rollover = (empty(trim($setting->teacherroles_to_rollover)) ? [] : explode(',', $setting->teacherroles_to_rollover));
     // $teacherroles_to_rollover = array_map('trim', $teacherroles_to_rollover);
-
+    mtrace($exluded_activitytypes);
     $plugin_name = 'local_rollover_wizard';
     $taskid_config = 'taskid';
     $taskid = get_config($plugin_name, $taskid_config);
@@ -167,11 +167,11 @@ function local_rollover_wizard_executerollover()
 
             try {
                 $rolloverqueue->status = ROLLOVER_WIZARD_INPROGRESS;
-                $DB->update_record('local_rollover_wizard_log', $rollover);
+                $DB->update_record('local_rollover_wizard_log', $rolloverqueue);
 
                 $cmids = json_decode($rolloverqueue->cmids);
                 $cur_excluded_activitytypes = array_merge($excluded_activitytypes, json_decode($rolloverqueue->excludedactivitytypes));
-
+                mtrace($cur_exluded_activitytypes);
                 // Old Code using core moodle function :
                 // $sourcesection_numbers = array_keys(get_fast_modinfo($rollover->sourcecourseid)->get_section_info_all());
                 // course_create_sections_if_missing($rollover->targetcourseid, $sourcesection_numbers);
@@ -276,7 +276,7 @@ function local_rollover_wizard_executerollover()
                             
                             $rolloverqueue->rolledovercmids = $rolledovercmids;
 
-                            $DB->update_record('local_rollover_wizard_log', $rollover);
+                            $DB->update_record('local_rollover_wizard_log', $rolloverqueue);
                         }
                         break;
                     } catch (\Throwable $e) {
@@ -300,7 +300,7 @@ function local_rollover_wizard_executerollover()
 
             $rolloverqueue->rolledovercmids = $rolledovercmids;
 
-            $DB->update_record('local_rollover_wizard_log', $rollover);
+            $DB->update_record('local_rollover_wizard_log', $rolloverqueue);
         }
 
         // Purge Caches
@@ -309,15 +309,14 @@ function local_rollover_wizard_executerollover()
 
 
         if (!empty($setting->enable_email_notification) && $setting->enable_email_notification == 1) {
-            if (count($rollovers) > 0) {
-                try {
-                    mtrace('Rollover process - Start sending email out.');
-                    local_rollover_wizard_send_email($rolloverqueue);
-                    mtrace('Rollover process - Sending email finished.');
-                } catch (\Exception $e) {
-                    mtrace("Error at sending email out: " . $e->getMessage());
-                }
+            try {
+                mtrace('Rollover process - Start sending email out.');
+                local_rollover_wizard_send_email($rolloverqueue);
+                mtrace('Rollover process - Sending email finished.');
+            } catch (\Exception $e) {
+                mtrace("Error at sending email out: " . $e->getMessage());
             }
+            
         }
         mtrace('Rollover process finished.');
     }
