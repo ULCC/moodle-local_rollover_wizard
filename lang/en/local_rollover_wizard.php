@@ -27,5 +27,11 @@ defined('MOODLE_INTERNAL') || die();
 
 $string['pluginname'] = 'Content Rollover Wizard';
 $string['importcourse'] = 'Import Content';
+$string['rollover_wizard:edit'] = 'Allow access to Content Rollover Wizard';
 $string['content_option1'] = 'Import a Blank Template';
 $string['content_option2'] = 'Import content from previous course you were enrolled in';
+
+$string['emailtemplate'] = '
+Dear {FULLNAME},
+<br><br>
+A course content rollover has been completed. View the results here: {REPORT-LINK}';

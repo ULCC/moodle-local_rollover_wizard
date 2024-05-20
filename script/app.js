@@ -18,7 +18,7 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
     var wizard_selected_activity = [];
     var canceltext = 'Cancel';
     var nexttext = 'Next';
-    var wizard_max_step = 6;
+    var wizard_max_step = 5;
     var wizard_taskid = null;
     $(document).ready(function(){
         $('.nav-item').on('click', function(e){
@@ -44,7 +44,7 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                     var html_footer = '<div style="margin-left: auto;margin-right:auto;width:90%;">'
                     +'<div class="d-flex justify-content-between align-items-center">'
                     +'    <div id="wizard_cancel_container"><button type="button" id="wizard_cancel_button" class="btn btn-secondary">'+canceltext+'</button></div>'
-                    +'    <div class="progress" style="min-width: 60%;"><div class="progress-bar progress-bar-striped" role="progressbar" style="width: 0;" id="wizard-progress-bar"></div></div>'
+                    +'    <div id="wizard_progress_container" style="min-width: 60%;"><div class="progress"><div class="progress-bar progress-bar-striped" role="progressbar" style="width: 0;" id="wizard-progress-bar"></div></div></div>'
                     +'    <div id="wizard_next_container"><button type="button" id="wizard_next_button" class="btn btn-primary">'+nexttext+'</button></div>'
                     +'</div>'
                     +'</div>';
@@ -77,6 +77,9 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                         $(root).find('.modal-dialog').removeClass('modal-lg');
                         $(root).find('.modal-dialog').addClass('modal-xl');
                         main_modal = modal;
+                        $(root).find('.modal-dialog').css('height', '85%');
+                        $(root).data('backdrop', 'static');
+
                         modalChangeView();
                     });
                 });
@@ -121,7 +124,9 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                     if(result.status == 200){
                         var data = result.data;
                         content+=data.html;
-                        wizard_activity_filter_list = data.activity_types;
+                        if(wizard_mode == 'previouscourse'){
+                            wizard_activity_filter_list = data.activity_types;
+                        }
                         modalShow(content);
                     }
                 }
@@ -163,6 +168,10 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
         $(root).find('.changecoursebutton').on('click', function(){
             modalSourceCourse();
         });
+        $(root).find('#selected_template_course').on('change', function(){
+            var sourcecourseid = $(this).val();
+            ajax('savesourcecourseid', {sourcecourseid: sourcecourseid, mode: wizard_mode})
+        });
         $(root).find('#btn-select-all').on('click', function(){
             $('input[name="rollover-wizard-cm[]"]').prop('checked', true);
         });
@@ -184,14 +193,14 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
     }
     function mainContainer(content){
         var html_body = '';
-        if(wizard_mode == 'previouscourse' && wizard_step > 1){
+        if(wizard_step > 1){
             canceltext = 'Back';
         }
         else{
             canceltext = 'Cancel';
         }
         
-        if(wizard_step == 4 && wizard_mode == 'previouscourse'){
+        if(wizard_step == 4){
             nexttext = 'Process';
         }
         else{
@@ -211,31 +220,43 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
             +'<div class="main-content">'
             + content
             +'</div>'
-            +'</div>'
-            +'<div class="spacer" style="min-height:13vh;">&nbsp;</div>';
+            +'</div>';
+            // +'<div class="spacer" style="min-height:13vh;">&nbsp;</div>';
         return html_body;
     }
     function processForm(){
         var root = main_modal.getRoot();
         if(wizard_step == 1){
             wizard_mode = $(root).find('input[name=content_option]:checked').val();
-            if(!wizard_mode || wizard_mode == 'blanktemplate'){
+            if(!wizard_mode){
                 notification.alert('Info', 'Please select at one option.', 'Ok');
                 return;
             }
-            if(wizard_mode == 'blanktemplate'){
-                wizard_max_step = 4;
-            }
-            if(wizard_mode == 'previouscourse'){
-                wizard_max_step = 5;
-            }
+            wizard_max_step = 5;
+            // if(wizard_mode == 'blanktemplate'){
+            // wizard_max_step = 4;
+            // }
+            // if(wizard_mode == 'previouscourse'){
+            //     wizard_max_step = 5;
+            // }
             wizard_step++;
             modalChangeView();
             return;
         }
         if(wizard_step == 2){
+            var warning_text = 'Please select source course first.';
+            if(wizard_mode == 'blanktemplate'){
+                var selected = $(root).find('#selected_template_course').val();
+                wizard_source_courseid = selected;
+                warning_text = 'Please select template course first.';
+            }
+            if(wizard_mode == 'previouscourse' && !wizard_source_courseid){
+                if($(".previewcourse_source_course_link").length && $(".previewcourse_source_course_link").data('courseid')){
+                    wizard_source_courseid = $(".previewcourse_source_course_link").data('courseid');
+                }
+            }
             if(!wizard_source_courseid){
-                notification.alert('Info', 'Please select source course first.', 'Ok');
+                notification.alert('Info', warning_text, 'Ok');
                 return;
             }
             wizard_step++;
@@ -243,36 +264,50 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
             return;
         }
         if(wizard_step == 3){
-            wizard_selected_activity = [];
-            $('input[name="rollover-wizard-cm[]"]').each(function(index,item){
-                var checked = $(this).prop('checked');
-                var key = $(this).data('module');
-                var section = $(this).data('section');
-                var value = $(this).val();
-                if(checked){
-                    wizard_selected_activity.push({
-                        key: key,
-                        value: value ,
-                        section: section 
-                    });
-                }
-            });
-            
-            if(wizard_selected_activity.length < 1){
-                notification.alert('Info', 'Please select activity type.', 'Ok');
-                return;
-            }
-            var data = JSON.stringify(wizard_selected_activity);
-            var promise = ajax('saveselectedactivity', {selectedactivity: data});
-            promise.then(function(result){
-                if (result.length != 0) {
-                    var result = JSON.parse(result);
-                    if(result.status == 200){
-                        wizard_step++;
-                        modalChangeView();
+            if(wizard_mode == 'previouscourse'){
+                wizard_selected_activity = [];
+                $('input[name="rollover-wizard-cm[]"]').each(function(index,item){
+                    var checked = $(this).prop('checked');
+                    var key = $(this).data('module');
+                    var section = $(this).data('section');
+                    var value = $(this).val();
+                    if(checked){
+                        wizard_selected_activity.push({
+                            key: key,
+                            value: value ,
+                            section: section 
+                        });
                     }
+                });
+                
+                if(wizard_selected_activity.length < 1){
+                    notification.alert('Info', 'Please select activity type.', 'Ok');
+                    return;
                 }
-            });
+                var data = JSON.stringify(wizard_selected_activity);
+                var promise = ajax('saveselectedactivity', {selectedactivity: data});
+                promise.then(function(result){
+                    if (result.length != 0) {
+                        var result = JSON.parse(result);
+                        if(result.status == 200){
+                            wizard_step++;
+                            modalChangeView();
+                        }
+                    }
+                });
+            }
+            if(wizard_mode == 'blanktemplate'){
+                var warning_text = 'Please select source course first.';
+                if(wizard_mode == 'blanktemplate'){
+                    warning_text = 'Please select template course first.';
+                }
+                if(!wizard_source_courseid){
+                    notification.alert('Info', warning_text, 'Ok');
+                    return;
+                }
+                wizard_step++;
+                modalChangeView();
+            }
             return;
         }
         if(wizard_step == 4){
@@ -411,48 +446,46 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
     function startRollover(modal){
         wizard_step++;
         modalChangeView();
-        modal.destroy();
         
         var root = main_modal.getRoot();
                         
         $(root).find('#wizard_cancel_container').hide();
+        $(root).find('#wizard_progress_container').hide();
         $(root).find('#wizard_next_container').hide();
-        if(wizard_mode == 'previouscourse'){
-            var promise = ajax('runrollovertask');
-            var interval = setInterval(function() {
-                $.ajax({
-                    type: 'POST',
-                    url: M.cfg.wwwroot + '/local/rollover_wizard/ajax.php',
-                    data: { action: 'checkrolloverstate', taskid: wizard_taskid, sesskey: M.cfg.sesskey },
-                    beforeSend: function () {
-                    },
-                    success: function (response) {
-                        if(response.length != 0) {
-                            var result = JSON.parse(response);
-                            if(result.status == 200){
-                                var root = main_modal.getRoot();
-                                var data = result.data;
-                                var percentage = parseInt(data.percentage);
-                                if(data.rolloverstatus != 'Successful' && data.rolloverstatus != 'Unsuccessful'){
-                                    $(root).find('#rollover-progress-bar').css('width', percentage+"%");
-                                }
-                                else{
-                                    clearInterval(interval);
-                                    $(root).find('.rollover-finish-notification').html(data.message);
-                                    $(root).find('#wizard_next_container').show();
-                                    $(root).find('#wizard_next_button').html('Finish');
-                                }
+        $(root).find('#wizard_next_container').parent().removeClass('justify-content-between');
+        $(root).find('#wizard_next_container').parent().addClass('justify-content-end');
+        var promise = ajax('runrollovertask').then(function(){
+            modal.destroy();
+        });
+        var interval = setInterval(function() {
+            $.ajax({
+                type: 'POST',
+                url: M.cfg.wwwroot + '/local/rollover_wizard/ajax.php',
+                data: { action: 'checkrolloverstate', taskid: wizard_taskid, sesskey: M.cfg.sesskey },
+                beforeSend: function () {
+                },
+                success: function (response) {
+                    if(response.length != 0) {
+                        var result = JSON.parse(response);
+                        if(result.status == 200){
+                            var root = main_modal.getRoot();
+                            var data = result.data;
+                            var percentage = parseInt(data.percentage);
+                            if(data.rolloverstatus != 'Successful' && data.rolloverstatus != 'Unsuccessful'){
+                                $(root).find('#rollover-progress-bar').css('width', percentage+"%");
+                            }
+                            else{
+                                clearInterval(interval);
+                                $(root).find('.rollover-finish-notification').html(data.message);
+                                $(root).find('#wizard_next_container').show();
+                                $(root).find('#wizard_next_button').html('Finish');
                             }
                         }
                     }
-                });
-            }, 1000);
-        }
-    }
-    function checkRolloverState(){
-        var deferrer = $.Deferred();
-        return deferrer;
-
+                }
+            });
+        }, 1000);
+        
     }
     // Content Rollover Code
     
@@ -467,10 +500,13 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
         html_body += '<div class="wrappermodalcontent" style="min-height: 457px;">';
         html_body += '<span style="font-size: 28px; display: block; margin: 0 auto; text-align: center; padding: 200px 0;"><i class="fa fa-spin fa-spinner"></span>';
         html_body += '</div>';
-
+        var titletext = 'Select a source course';
+        if(wizard_mode == 'blanktemplate'){
+            titletext = "Select template course";
+        }
         ModalFactory.create({
             large: true,
-            title: 'Select a source course',
+            title: titletext,
             body: html_body,
         })
             .then(function (modal) {
@@ -514,10 +550,10 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
     function retrievecourses(categoryid, modalcontent, search = null, sourcecourseid = 0) {
         var data = {};
         if(search == null){
-            data = { action: "retrievecourses", categoryid: categoryid, courseid: sourcecourseid, sesskey: M.cfg.sesskey };
+            data = { action: "retrievecourses", categoryid: categoryid, courseid: sourcecourseid, mode: wizard_mode,  sesskey: M.cfg.sesskey };
         }
         else{
-            data = { action: "searchcourses", search: search, courseid: sourcecourseid,sesskey: M.cfg.sesskey }
+            data = { action: "searchcourses", search: search, courseid: sourcecourseid, mode: wizard_mode, sesskey: M.cfg.sesskey }
         }
         $.ajax({
             type: "POST",
@@ -550,7 +586,7 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                         });
                     }
                     else{
-                        html += '<p class="text-center w-100">No matching courses found. Please consider refining your search criteria</p>';
+                        // html += '<p class="text-center w-100">No matching courses found. Please consider refining your search criteria</p>';
                     }
 
                     $(modalcontent).find('.wrappermodalcontent').html(html);
@@ -578,10 +614,14 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                                 wizard_source_courseid = null;
                                 $(modalcontent).find('.alert-container').html('');
                                 $(main_modal.getRoot()).find('.alert-container').html('');
-                                $(main_modal.getRoot()).find('.previewcourse_source_course_link').text('Source Course Not Selected Yet');
+                                var emptytext = 'Source Course Not Selected Yet';
+                                if(wizard_mode == 'blanktemplate'){
+                                    emptytext = 'Template Course not selected yet';
+                                }
+                                $(main_modal.getRoot()).find('.previewcourse_source_course_link').text(emptytext);
                                 $(main_modal.getRoot()).find('.previewcourse_source_course_link').prop('href','#');
                                 $(this).toggleClass('selected');
-                                if(wizard_step == 3){
+                                if(wizard_step == 3 && wizard_mode == 'previouscourse'){
                                     $(main_modal.getRoot()).find('#rollover-activity-container').addClass('hide');
                                     $(main_modal.getRoot()).find('#rollover-activity-container').removeClass('show');
                                     $('input[name="rollover-wizard-cm[]"]').prop('checked', false);
@@ -605,7 +645,7 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                                             $(main_modal.getRoot()).find('.alert-container').html(response);
                                             $(main_modal.getRoot()).find('.previewcourse_source_course_link').text(coursename);
                                             $(main_modal.getRoot()).find('.previewcourse_source_course_link').prop('href',M.cfg.wwwroot + '/course/view.php?id='+courseid);
-                                            if(wizard_step == 3){
+                                            if(wizard_step == 3 && wizard_mode == 'previouscourse'){
                                                 $(main_modal.getRoot()).find('#rollover-activity-container').removeClass('hide');
                                                 $(main_modal.getRoot()).find('#rollover-activity-container').addClass('show');
                                                 callback = function(){
@@ -616,9 +656,13 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                                         else{
                                             $(modalcontent).find('.alert-container').html('');
                                             $(main_modal.getRoot()).find('.alert-container').html('');
-                                            $(main_modal.getRoot()).find('.previewcourse_source_course_link').text('Source Course Not Selected Yet');
+                                            var emptytext = 'Source Course Not Selected Yet';
+                                            if(wizard_mode == 'blanktemplate'){
+                                                emptytext = 'Tempalte Course not selected yet';
+                                            }
+                                            $(main_modal.getRoot()).find('.previewcourse_source_course_link').text(emptytext);
                                             $(main_modal.getRoot()).find('.previewcourse_source_course_link').prop('href','#');
-                                            if(wizard_step == 3){
+                                            if(wizard_step == 3 && wizard_mode == 'previouscourse'){
                                                 $(main_modal.getRoot()).find('#rollover-activity-container').addClass('hide');
                                                 $(main_modal.getRoot()).find('#rollover-activity-container').removeClass('show');
                                                 $('input[name="rollover-wizard-cm[]"]').prop('checked', false);

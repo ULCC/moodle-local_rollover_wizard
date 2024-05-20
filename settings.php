@@ -48,7 +48,10 @@ if ($hassiteconfig) {
     $settings->add($element);
     $element = new admin_setting_configtext('local_rollover_wizard/pattern_match_course', 'Pattern Match for Matching Course','', null);
     $settings->add($element);
-    $element = new admin_setting_configtext('local_rollover_wizard/identifier_course_template', 'Identifier for template courses','', null);
+
+    $displaylist = \core_course_category::make_categories_list('moodle/course:create');
+    $element = new admin_setting_configselect_autocomplete('local_rollover_wizard/identifier_template_course', 'Identifier for template courses','', 0,  $displaylist);
+    // $element = new admin_setting_configtext('local_rollover_wizard/identifier_course_template', 'Identifier for template courses','', null);
     $settings->add($element);
 
     $choices = [1 => "1 GB",

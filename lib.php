@@ -66,7 +66,7 @@ function local_rollover_wizard_verify_course($sourcecourseid, $targetcourseid, $
     if (in_array($targetcourseid, $rolledover_targetcourse_keys)) {
         $userid = $rolledover_targetcourses[$targetcourseid]->userid;
         $user = $DB->get_record('user', ['id' => $userid]);
-        $warnings = 'This course has content imported on ' . userdate($rolledover_targetcourses[$targetcourseid]->timecreated, '%d-%m-%y');
+        $warnings = 'This course had content imported on ' . userdate($rolledover_targetcourses[$targetcourseid]->timecreated, '%d-%m-%y') . " by ". fullname($user);
         $warningcount++;
     }
     if($fullwarning){
@@ -129,7 +129,7 @@ function local_rollover_wizard_executerollover()
     $excluded_activitytypes = array_map('trim', $excluded_activitytypes);
     // $teacherroles_to_rollover = (empty(trim($setting->teacherroles_to_rollover)) ? [] : explode(',', $setting->teacherroles_to_rollover));
     // $teacherroles_to_rollover = array_map('trim', $teacherroles_to_rollover);
-    mtrace($exluded_activitytypes);
+
     $plugin_name = 'local_rollover_wizard';
     $taskid_config = 'taskid';
     $taskid = get_config($plugin_name, $taskid_config);
@@ -154,7 +154,7 @@ function local_rollover_wizard_executerollover()
 
         mtrace('Content Rollover Wizard Taskid: ' . $rolloverqueue->taskid . ' Started.');
 
-        if (!empty($rolloverqueue->cmids) && $rolloverqueue->rollovermode == 'previouscourse') {
+        if (!empty($rolloverqueue->cmids)) {
 
             if ($rolloverqueue->status != ROLLOVER_WIZARD_NOTSTARTED) {
                 continue;
@@ -389,10 +389,7 @@ function local_rollover_wizard_send_email($rolloverqueue)
 
     $subject = 'Course content rollover has completed.';
 
-    $html_emmail_template = '
-        Dear {FULLNAME},
-        <br><br>
-        A course content rollover has been completed. View the results here: {REPORT-LINK}';
+    $html_emmail_template = get_string('emailtemplate', 'local_rollover_wizard');
 
     $report_link = $CFG->wwwroot . '/local/rollover_wizard/viewreport.php?taskid=' . $rolloverqueue->taskid;
     $report_link = "<a href='$report_link'>$report_link</a>";
