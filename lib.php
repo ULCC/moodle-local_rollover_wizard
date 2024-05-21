@@ -416,7 +416,7 @@ function local_rollover_wizard_send_email($rolloverqueue)
     $eventdata->smallmessage = $html_emmail_template;
     $eventdata->notification = 1;
     // $eventdata->contexturl = $report_link;
-    $eventdata->contexturl = (new moodle_url('/local/rollover_wizard/viewreport.php', ['taskid' => $rolloverqueue->taskid]))->out();
+    $eventdata->contexturl = (new moodle_url('/course/view.php', ['id' => $rolloverqueue->targetcourseid]))->out();
     $eventdata->contexturlname = 'View report';
     $eventdata->courseid = 0;
 
