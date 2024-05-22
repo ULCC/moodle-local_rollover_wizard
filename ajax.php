@@ -39,7 +39,7 @@ if (confirm_sesskey()) {
             $mform->addElement('radio', 'content_option', '', get_string('content_option1','local_rollover_wizard'), 'blanktemplate');
             $mform->addElement('radio', 'content_option', '', get_string('content_option2','local_rollover_wizard'), 'previouscourse');
             
-            $html = '<h2>Import Course</h2>'.'<p>Do you want to start from a blank template or import content from a previous course ?</p>';
+            $html = '<h2>Import Content</h2>'.'<p>Do you want to start from a blank template or import content from a previous course ?</p>';
             $warning = local_rollover_wizard_verify_course(null, ($_SESSION['local_rollover_wizard']['target_course'])->id, false);
             if(!empty($warning) && $warning !== '&nbsp;'){
                 $warning = "<div class='alert alert-warning'>".$warning."</div>";
@@ -265,7 +265,7 @@ if (confirm_sesskey()) {
                     $cmids = explode(',',$sequence);
                     foreach($cmids as $cmid){
                         $cm = $DB->get_record('course_modules', ['id' => $cmid]);
-                        if($cm->deletioninprogress < 1){
+                        if($cm && $cm->deletioninprogress < 1){
                             $module_record = $DB->get_record('modules', ['id' => $cm->module]);
                             if(!$module_record){
                                 continue;
@@ -411,7 +411,7 @@ if (confirm_sesskey()) {
                     $cmids = explode(',',$sequence);
                     foreach($cmids as $cmid){
                         $cm = $DB->get_record('course_modules', ['id' => $cmid]);
-                        if($cm->deletioninprogress < 1){
+                        if($cm && $cm->deletioninprogress < 1){
                             $module_record = $DB->get_record('modules', ['id' => $cm->module]);
                             if(!$module_record){
                                 continue;
@@ -462,8 +462,14 @@ if (confirm_sesskey()) {
                 
                 
                 // process identifier wheter task should be CRON or instant
-                // for now its instant
-                $html .= '<input type="hidden" id="rollover_process_mode" value="instantexecute">';
+                $is_cron = local_rollover_wizard_is_crontask($source_course->id);
+                // $is_cron = true; 
+                if($is_cron){
+                    $html .= '<input type="hidden" id="rollover_process_mode" value="cron">';
+                }
+                else{
+                    $html .= '<input type="hidden" id="rollover_process_mode" value="instantexecute">';
+                }
                 
                 display_result(200,['html' => $html]);
             }
@@ -513,7 +519,7 @@ if (confirm_sesskey()) {
                     $cmids = explode(',',$sequence);
                     foreach($cmids as $cmid){
                         $cm = $DB->get_record('course_modules', ['id' => $cmid]);
-                        if($cm->deletioninprogress < 1){
+                        if($cm && $cm->deletioninprogress < 1){
                             $module_record = $DB->get_record('modules', ['id' => $cm->module]);
                             if(!$module_record){
                                 continue;
@@ -564,8 +570,14 @@ if (confirm_sesskey()) {
                 
                 
                 // process identifier wheter task should be CRON or instant
-                // for now its instant
-                $html .= '<input type="hidden" id="rollover_process_mode" value="instantexecute">';
+                $is_cron = local_rollover_wizard_is_crontask($source_course->id);
+                // $is_cron = true; 
+                if($is_cron){
+                    $html .= '<input type="hidden" id="rollover_process_mode" value="cron">';
+                }
+                else{
+                    $html .= '<input type="hidden" id="rollover_process_mode" value="instantexecute">';
+                }
                 
                 display_result(200,['html' => $html]);
             }
@@ -580,14 +592,6 @@ if (confirm_sesskey()) {
                 $html = '<h2 class="text-center">Import from previous course</h2>'
                 .'<p></p>'
                 .'<div class="alert-container"></div>';
-                $html .= "<div class='d-flex justify-content-center align-items-center w-100 h-100'>";
-                $html .= "<div class='d-flex flex-column rollover-finish-notification'>";                
-                $html .= "<p>Rolling Over Course Content...</p>";
-                $html .= '<div class="progress" style="min-width: 100%;"><div class="progress-bar progress-bar-striped" role="progressbar" style="width: 0;" id="rollover-progress-bar"></div></div>';
-                $html .= "</div>";
-                $html .= "</div>";
-
-                display_result(200,['html' => $html]);
             }
             if($mode == 'blanktemplate'){
 
@@ -597,21 +601,64 @@ if (confirm_sesskey()) {
                 $html = '<h2 class="text-center">Import a blank template</h2>'
                 .'<p></p>'
                 .'<div class="alert-container"></div>';
-                $html .= "<div class='d-flex justify-content-center align-items-center w-100 h-100'>";
+            }
+            
+            $html .= "<div class='d-flex justify-content-center align-items-center w-100 h-100'>";
+
+            $session_data = $_SESSION['local_rollover_wizard'];
+            $target_course = $session_data['target_course'];
+
+            $source_course = $session_data['source_course'];
+
+            $is_cron = local_rollover_wizard_is_crontask($source_course->id);
+            // $is_cron = true; 
+            if($is_cron){
+                $taskname = 'local_rollover_wizard\task\execute_rollover';
+    
+                $task = \core\task\manager::get_scheduled_task($taskname);
+                if (!$task) {
+                    print_error('cannotfindinfo', 'error', $taskname);
+                }
+                $html .= "<div class='d-flex flex-column rollover-finish-notification'>";           
+                $html .= "<p>The content import will take place on ".userdate($task->get_next_run_time())."</p>";
+                $html .= "</div>";
+            }
+            else{
                 $html .= "<div class='d-flex flex-column rollover-finish-notification'>";                
                 $html .= "<p>Rolling Over Course Content...</p>";
-                $html .= '<div class="progress" style="min-width: 100%;"><div class="progress-bar progress-bar-striped" role="progressbar" style="width: 0;" id="rollover-progress-bar"></div></div>';
+                $html .= '<div class="progress" style="min-width: 100%;"><div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0;" id="rollover-progress-bar"></div></div>';
                 $html .= "</div>";
-                $html .= "</div>";
-
-                display_result(200,['html' => $html]);
             }
+            
+            $html .= "</div>";
+
+            display_result(200,['html' => $html]);
         }
     }
     else if ($action == 'retrievesessiondata'){
         $session_data = $_SESSION['local_rollover_wizard'];
         
         display_result(200,['data' => $session_data]);
+    }
+    else if ($action == 'retrieveconfirmdialog'){
+        $mode = required_param('mode', PARAM_TEXT);
+        $html = '';
+        if($mode == 'instantexecute'){
+            $html .="<p>The import process will start immediately</p>";
+        }
+        if($mode == 'cron'){
+            $taskname = 'local_rollover_wizard\task\execute_rollover';
+
+            $task = \core\task\manager::get_scheduled_task($taskname);
+            if (!$task) {
+                print_error('cannotfindinfo', 'error', $taskname);
+            }
+            $setting = get_config('local_rollover_wizard');
+            // The selected content is over 3GB - the content import will take place on xxxx. You will receive a notification when it has completed.
+            $html .="<p>The selected content is over ".$setting->cron_size_threshold."GB - the content import will take place on ".userdate($task->get_next_run_time()).". You will receive a notification when it has completed.</p>";
+        }
+
+        display_result(200,['html' => $html]);
     }
     else if($action == 'savesourcecourseid'){
         $source_courseid = required_param('sourcecourseid', PARAM_INT);
@@ -650,91 +697,68 @@ if (confirm_sesskey()) {
     }
     else if($action == 'startrollover'){
         $mode = required_param('mode', PARAM_TEXT);
-        if($mode == 'previouscourse'){
-            
-            $setting = get_config('local_rollover_wizard');
+        $setting = get_config('local_rollover_wizard');
 
-            $excluded_activitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
-            $excluded_activitytypes = array_map('trim', $excluded_activitytypes);
+        $excluded_activitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
+        $excluded_activitytypes = array_map('trim', $excluded_activitytypes);
 
-            $session_data = $_SESSION['local_rollover_wizard'];
-            $target_course = $session_data['target_course'];
-            $selected_activity = $session_data['selected_activity'];
-            $processed_activity = [];
-            $cmids = [];
-            foreach($selected_activity as $activity){
-                $processed_activity[$activity->section][] = $activity->value;
-                $cmids[] = $activity->value;
-            }
-            $source_course = $session_data['source_course'];
-            $taskid = time();
-            $newrollover = new \stdClass();
-            $newrollover->taskid = $taskid;
-            $newrollover->rollovermode = $mode;
-            $newrollover->instantexecute = 1; // Temporary
-            $newrollover->sourcecourseid = $source_course->id;
-            $newrollover->targetcourseid = $target_course->id;
-            $newrollover->templatecourse = null;
-            $newrollover->status = ROLLOVER_WIZARD_NOTSTARTED;
-            $newrollover->userid = $USER->id;
-            $newrollover->note = '';
-            $newrollover->cmids = json_encode($cmids);
-            $newrollover->rolledovercmids = null;
-            $newrollover->excludedactivitytypes = json_encode($excluded_activitytypes);
-            $newrollover->timecreated = time();
-            $newrollover->timeupdated = time();
-            $DB->insert_record('local_rollover_wizard_log', $newrollover);
-
-            $plugin_name = 'local_rollover_wizard';
-            $rollingid_config = 'taskid';
-            set_config($rollingid_config, $taskid, $plugin_name);
-            
-            display_result(200,['taskid' => $taskid]);
-        }
+        $session_data = $_SESSION['local_rollover_wizard'];
+        $target_course = $session_data['target_course'];
+        $source_course = $session_data['source_course'];
         
+        $cmids = [];
         if($mode == 'blanktemplate'){
-            
-            $setting = get_config('local_rollover_wizard');
-
-            $excluded_activitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
-            $excluded_activitytypes = array_map('trim', $excluded_activitytypes);
-
-            $session_data = $_SESSION['local_rollover_wizard'];
-            $target_course = $session_data['target_course'];
-            $source_course = $session_data['source_course'];
             $selected_activity = $DB->get_records('course_modules', ['course' => $source_course->id]);
             foreach($selected_activity as $activity){
                 $cmids[] = $activity->id;
             }
-            $taskid = time();
-            $newrollover = new \stdClass();
-            $newrollover->taskid = $taskid;
-            $newrollover->rollovermode = $mode;
-            $newrollover->instantexecute = 1; // Temporary
-            $newrollover->sourcecourseid = $source_course->id;
-            $newrollover->targetcourseid = $target_course->id;
-            $newrollover->templatecourse = null;
-            $newrollover->status = ROLLOVER_WIZARD_NOTSTARTED;
-            $newrollover->userid = $USER->id;
-            $newrollover->note = '';
-            $newrollover->cmids = json_encode($cmids);
-            $newrollover->rolledovercmids = null;
-            $newrollover->excludedactivitytypes = json_encode($excluded_activitytypes);
-            $newrollover->timecreated = time();
-            $newrollover->timeupdated = time();
-            $DB->insert_record('local_rollover_wizard_log', $newrollover);
+        }
+        if($mode == 'previouscourse'){
+            $selected_activity = $session_data['selected_activity'];
+            $cmids = [];
+            foreach($selected_activity as $activity){
+                $cmids[] = $activity->value;
+            }
+        }
 
+        $instantexecute = 1;
+        
+        $is_cron = local_rollover_wizard_is_crontask($source_course->id);
+        // $is_cron = true; 
+        if($is_cron){
+            $instantexecute = 0;
+        }
+
+        $taskid = time();
+        $newrollover = new \stdClass();
+        $newrollover->taskid = $taskid;
+        $newrollover->rollovermode = $mode;
+        $newrollover->instantexecute = $instantexecute;
+        $newrollover->sourcecourseid = $source_course->id;
+        $newrollover->targetcourseid = $target_course->id;
+        $newrollover->templatecourse = null;
+        $newrollover->status = ROLLOVER_WIZARD_NOTSTARTED;
+        $newrollover->userid = $USER->id;
+        $newrollover->note = '';
+        $newrollover->cmids = json_encode($cmids);
+        $newrollover->rolledovercmids = null;
+        $newrollover->excludedactivitytypes = json_encode($excluded_activitytypes);
+        $newrollover->timecreated = time();
+        $newrollover->timeupdated = time();
+        $DB->insert_record('local_rollover_wizard_log', $newrollover);
+
+        if(!$is_cron){
             $plugin_name = 'local_rollover_wizard';
             $rollingid_config = 'taskid';
             set_config($rollingid_config, $taskid, $plugin_name);
-            
-            display_result(200,['taskid' => $taskid]);
         }
+        
+        display_result(200,['taskid' => $taskid]);
     }
     else if ($action == 'runrollovertask'){
 
         $plugin_name = 'local_rollover_wizard';
-        $rollingid_config = 'taskid';
+        $taskid_config = 'taskid';
         $taskid = get_config($plugin_name, $taskid_config);
 
         if(empty($taskid)){
@@ -801,6 +825,9 @@ if (confirm_sesskey()) {
                     foreach($courses as $course){
                         $context = \context_course::instance($course->id);
                         $enrolled = is_enrolled($context,$USER);
+                        if(is_siteadmin($USER)){
+                            $enrolled = true;
+                        }
                         if($enrolled){
                             $has_enrol = true;
                             break;
@@ -820,6 +847,9 @@ if (confirm_sesskey()) {
                 foreach ($curcourses as $course) {
                     $context = \context_course::instance($course->id);
                     $enrolled = is_enrolled($context,$USER);
+                    if(is_siteadmin($USER)){
+                        $enrolled = true;
+                    }
                     if(!$enrolled){
                         continue;
                     }
@@ -842,6 +872,9 @@ if (confirm_sesskey()) {
                     foreach($courses as $course){
                         $context = \context_course::instance($course->id);
                         $enrolled = is_enrolled($context,$USER);
+                        if(is_siteadmin($USER)){
+                            $enrolled = true;
+                        }
                         if($enrolled){
                             $has_enrol = true;
                             break;
@@ -885,6 +918,9 @@ if (confirm_sesskey()) {
                     foreach($courses as $course){
                         $context = \context_course::instance($course->id);
                         $enrolled = is_enrolled($context,$USER);
+                        if(is_siteadmin($USER)){
+                            $enrolled = true;
+                        }
                         if($enrolled){
                             $has_enrol = true;
                             break;
@@ -904,6 +940,9 @@ if (confirm_sesskey()) {
                 foreach ($curcourses as $course) {
                     $context = \context_course::instance($course->id);
                     $enrolled = is_enrolled($context,$USER);
+                    if(is_siteadmin($USER)){
+                        $enrolled = true;
+                    }
                     if(!$enrolled){
                         continue;
                     }
@@ -1019,6 +1058,9 @@ if (confirm_sesskey()) {
         foreach ($result as $course) {
             $context = \context_course::instance($course->id);
             $enrolled = is_enrolled($context,$USER);
+            if(is_siteadmin($USER)){
+                $enrolled = true;
+            }
             if(!$enrolled){
                 continue;
             }

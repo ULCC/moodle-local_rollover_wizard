@@ -384,14 +384,13 @@ function local_rollover_wizard_rewrite_summary($courseid, $summary)
 function local_rollover_wizard_send_email($rolloverqueue)
 {
     global $CFG, $DB;
-
     require_once $CFG->dirroot . '/course/lib.php';
 
     $subject = 'Course content rollover has completed.';
 
     $html_emmail_template = get_string('emailtemplate', 'local_rollover_wizard');
 
-    $report_link = $CFG->wwwroot . '/local/rollover_wizard/viewreport.php?taskid=' . $rolloverqueue->taskid;
+    $report_link = $CFG->wwwroot . '/course/view.php?id=' . $rolloverqueue->targetcourseid;
     $report_link = "<a href='$report_link'>$report_link</a>";
 
     $email_user = $DB->get_record('user', ['id' => $rolloverqueue->userid]);
@@ -406,7 +405,7 @@ function local_rollover_wizard_send_email($rolloverqueue)
     // New approach.
     $eventdata = new \core\message\message();
     $eventdata->component = 'local_rollover_wizard';
-    $eventdata->name = 'content_rolledover';
+    $eventdata->name = 'content_rolledover_wizard';
     $eventdata->userfrom = \core_user::get_noreply_user();
     $eventdata->userto = $email_user;
     $eventdata->subject = $subject;
@@ -417,7 +416,7 @@ function local_rollover_wizard_send_email($rolloverqueue)
     $eventdata->notification = 1;
     // $eventdata->contexturl = $report_link;
     $eventdata->contexturl = (new moodle_url('/course/view.php', ['id' => $rolloverqueue->targetcourseid]))->out();
-    $eventdata->contexturlname = 'View report';
+    $eventdata->contexturlname = 'Rollover Wizard';
     $eventdata->courseid = 0;
 
     message_send($eventdata);
@@ -469,4 +468,48 @@ function local_rollover_wizard_course_create_section($courseorid, $position = 0,
 
     rebuild_course_cache($courseid, true);
     return $cw;
+}
+
+function local_rollover_wizard_is_crontask($courseid){
+    global $DB;
+    
+    $setting = get_config('local_rollover_wizard');
+    $course = local_rollover_wizard_course_filesize($courseid);
+    $max_filesize = ((($setting->cron_size_threshold * 1024) * 1024) * 1024);
+    return $course->filesize >= $max_filesize;
+}
+function local_rollover_wizard_course_filesize($courseid) {
+    global $DB;
+    $sqlunion = "UNION ALL
+                    SELECT c.id, f.filesize
+                    FROM {block_instances} bi
+                    JOIN {context} cx1 ON cx1.contextlevel = ".CONTEXT_BLOCK. " AND cx1.instanceid = bi.id
+                    JOIN {context} cx2 ON cx2.contextlevel = ". CONTEXT_COURSE. " AND cx2.id = bi.parentcontextid
+                    JOIN {course} c ON c.id = cx2.instanceid
+                    JOIN {files} f ON f.contextid = cx1.id
+                UNION ALL
+                    SELECT c.id, f.filesize
+                    FROM {course_modules} cm
+                    JOIN {context} cx ON cx.contextlevel = ".CONTEXT_MODULE." AND cx.instanceid = cm.id
+                    JOIN {course} c ON c.id = cm.course
+                    JOIN {files} f ON f.contextid = cx.id";
+
+    $sqlunion = "SELECT id AS course, SUM(filesize) AS filesize
+              FROM (SELECT c.id, f.filesize
+                      FROM {course} c
+                      JOIN {context} cx ON cx.contextlevel = ".CONTEXT_COURSE." AND cx.instanceid = c.id
+                      JOIN {files} f ON f.contextid = cx.id {$sqlunion}) x
+                GROUP BY id";
+
+    
+    $sql = "SELECT c.id, c.fullname, c.category, ca.name as categoryname, rc.filesize
+    FROM {course} c
+    JOIN ($sqlunion) rc on rc.course = c.id ";
+
+
+    $sql .= "JOIN {course_categories} ca on c.category = ca.id
+    WHERE c.id = ".$courseid."
+    ORDER BY rc.filesize DESC";
+    $course = $DB->get_record_sql($sql);
+    return $course;
 }

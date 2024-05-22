@@ -50,7 +50,7 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                     +'</div>';
                     main_modal = ModalFactory.create({
                         large: true,
-                        title: 'Content Rollover Wizard',
+                        title: 'Import Content',
                         // type: ModalFactory.types.SAVE_CANCEL,
                         body: '<div class="modal-body-container"></div>',
                         removeOnClose: true,
@@ -313,8 +313,12 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
         if(wizard_step == 4){
             var rollover_process_mode = $('#rollover_process_mode').val();
             if(rollover_process_mode == 'instantexecute'){
-                modalConfirmProcess();
+                // modalConfirmProcess();
             }
+            if(rollover_process_mode == 'cron'){
+                // alert('Cron Process');
+            }
+            modalConfirmProcess(rollover_process_mode);
         }
         if(wizard_step == 5){
             main_modal.destroy();
@@ -397,53 +401,65 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                 modal.show();
             });
     }
-    function modalConfirmProcess(){
+    function modalConfirmProcess(rollover_process_mode){
         var html_body = '';
-        html_body+="<div class='container' id='container-notif'>"
-        html_body+="<p>The import process will start immediately</p>";
-        html_body+="<p>Do you want to proceed ?</p>";
-        html_body+="<div class='d-flex justify-content-between'>";
-        html_body+="<button type='button' class='btn btn-secondary' id='btn-cancel-process'>Cancel</button>";
-        html_body+="<button type='button' class='btn btn-primary' id='btn-confirm-process'>Confirm</button>";
-        html_body+="</div>";
-        html_body+="</div>";
-        html_body+="<div class='hide' id='container-loading'>";
-        html_body+='<span style="font-size: 28px; display: block; margin: 0 auto; text-align: center;"><i class="fa fa-spin fa-spinner"></span>';
-        html_body+="</div>";
-        ModalFactory.create({
-            large: true,
-            title: 'Start Import',
-            body: html_body,
-        })
-            .then(function (modal) {
-                var root = modal.getRoot();
-                root.on(ModalEvents.save, function () {
-                    //
-                });
-                
-                $(root).find('#btn-cancel-process').on('click', function(){
-                    modal.destroy();
-                });
-                $(root).find('#btn-confirm-process').on('click', function(){
-                    $(root).find('#container-notif').hide();
-                    $(root).find('#container-loading').show();
-                    var promise = ajax('startrollover', {mode: wizard_mode});
-                    promise.then(function(result){
-                        if (result.length != 0) {
-                            var result = JSON.parse(result);
-                            if(result.status == 200){
-                                wizard_taskid = result.data.taskid;
-                                startRollover(modal);
-                            }
-                        }
-                    });
-                });
-                $(root).find('.modal-dialog').removeClass('modal-lg');
-                $(root).find('.modal-dialog').addClass('modal-sm');
-                modal.show();
-            });
+        html_body+="<div class='container' id='container-notif'>";
+
+        var promise = ajax('retrieveconfirmdialog', {mode: rollover_process_mode});
+        promise.then(function(result){
+            if (result.length != 0) {
+                var result = JSON.parse(result);
+                if(result.status == 200){
+                    // html_body+="<p>The import process will start immediately</p>";
+                    html_body += result.data.html;
+                    html_body+="<p>Do you want to proceed ?</p>";
+                    html_body+="<div class='d-flex justify-content-between'>";
+                    html_body+="<button type='button' class='btn btn-secondary' id='btn-cancel-process'>Cancel</button>";
+                    html_body+="<button type='button' class='btn btn-primary' id='btn-confirm-process'>Confirm</button>";
+                    html_body+="</div>";
+                    html_body+="</div>";
+                    html_body+="<div class='hide' id='container-loading'>";
+                    html_body+='<span style="font-size: 28px; display: block; margin: 0 auto; text-align: center;"><i class="fa fa-spin fa-spinner"></span>';
+                    html_body+="</div>";
+                    ModalFactory.create({
+                        large: true,
+                        title: 'Start Import',
+                        body: html_body,
+                    })
+                        .then(function (modal) {
+                            var root = modal.getRoot();
+                            root.on(ModalEvents.save, function () {
+                                //
+                            });
+                            
+                            $(root).find('#btn-cancel-process').on('click', function(){
+                                modal.destroy();
+                            });
+                            $(root).find('#btn-confirm-process').on('click', function(){
+                                $(root).find('#container-notif').hide();
+                                $(root).find('#container-loading').show();
+                                var promise = ajax('startrollover', {mode: wizard_mode});
+                                promise.then(function(result){
+                                    if (result.length != 0) {
+                                        var result = JSON.parse(result);
+                                        if(result.status == 200){
+                                            wizard_taskid = result.data.taskid;
+                                            startRollover(modal, rollover_process_mode);
+                                        }
+                                    }
+                                });
+                            });
+                            $(root).find('.modal-dialog').removeClass('modal-lg');
+                            $(root).find('.modal-dialog').addClass('modal-sm');
+                            modal.show();
+                        });
+                }
+            }
+        });
+
+
     }
-    function startRollover(modal){
+    function startRollover(modal, rollover_process_mode = 'instantexecute'){
         wizard_step++;
         modalChangeView();
         
@@ -454,37 +470,52 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
         $(root).find('#wizard_next_container').hide();
         $(root).find('#wizard_next_container').parent().removeClass('justify-content-between');
         $(root).find('#wizard_next_container').parent().addClass('justify-content-end');
-        var promise = ajax('runrollovertask').then(function(){
-            modal.destroy();
-        });
-        var interval = setInterval(function() {
-            $.ajax({
-                type: 'POST',
-                url: M.cfg.wwwroot + '/local/rollover_wizard/ajax.php',
-                data: { action: 'checkrolloverstate', taskid: wizard_taskid, sesskey: M.cfg.sesskey },
-                beforeSend: function () {
-                },
-                success: function (response) {
-                    if(response.length != 0) {
-                        var result = JSON.parse(response);
-                        if(result.status == 200){
-                            var root = main_modal.getRoot();
-                            var data = result.data;
-                            var percentage = parseInt(data.percentage);
-                            if(data.rolloverstatus != 'Successful' && data.rolloverstatus != 'Unsuccessful'){
-                                $(root).find('#rollover-progress-bar').css('width', percentage+"%");
-                            }
-                            else{
-                                clearInterval(interval);
-                                $(root).find('.rollover-finish-notification').html(data.message);
-                                $(root).find('#wizard_next_container').show();
-                                $(root).find('#wizard_next_button').html('Finish');
+        if(rollover_process_mode == 'instantexecute'){
+            var hasruntask = false;
+            var interval = setInterval(function() {
+                $.ajax({
+                    type: 'POST',
+                    url: M.cfg.wwwroot + '/local/rollover_wizard/ajax.php',
+                    data: { action: 'checkrolloverstate', taskid: wizard_taskid, sesskey: M.cfg.sesskey },
+                    beforeSend: function () {
+                        if(!hasruntask){
+                            hasruntask = true;
+                            modal.destroy();
+                            var promise = ajax('runrollovertask').then(function(){
+                            });
+                        }
+                    },
+                    success: function (response) {
+                        if(response.length != 0) {
+                            var result = JSON.parse(response);
+                            if(result.status == 200){
+                                var root = main_modal.getRoot();
+                                var data = result.data;
+                                var percentage = parseInt(data.percentage);
+                                if(data.rolloverstatus != 'Successful' && data.rolloverstatus != 'Unsuccessful'){
+                                    $(root).find('#rollover-progress-bar').css('width', percentage+"%");
+                                }
+                                else{
+                                    clearInterval(interval);
+                                    $(root).find('.rollover-finish-notification').html(data.message);
+                                    $(root).find('#wizard_next_container').show();
+                                    $(root).find('#wizard_next_button').html('Finish');
+                                }
                             }
                         }
                     }
-                }
-            });
-        }, 1000);
+                });
+            }, 1000);
+        }
+        if(rollover_process_mode == 'cron'){
+            modal.destroy();
+            
+            var interval = setInterval(function() {
+                $(root).find('#wizard_next_container').show();
+                $(root).find('#wizard_next_button').html('Finish');
+                clearInterval(interval);
+            }, 1000);
+        }
         
     }
     // Content Rollover Code
@@ -641,8 +672,8 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                                         wizard_source_courseid = courseid;
                                         var callback = null;
                                         if(response.length > 0){
-                                            $(modalcontent).find('.alert-container').html(response);
-                                            $(main_modal.getRoot()).find('.alert-container').html(response);
+                                            // $(modalcontent).find('.alert-container').html(response);
+                                            // $(main_modal.getRoot()).find('.alert-container').html(response);
                                             $(main_modal.getRoot()).find('.previewcourse_source_course_link').text(coursename);
                                             $(main_modal.getRoot()).find('.previewcourse_source_course_link').prop('href',M.cfg.wwwroot + '/course/view.php?id='+courseid);
                                             if(wizard_step == 3 && wizard_mode == 'previouscourse'){
