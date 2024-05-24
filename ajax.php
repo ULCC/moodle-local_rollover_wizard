@@ -30,28 +30,69 @@ if (confirm_sesskey()) {
 
     $action = required_param('action', PARAM_TEXT);
 
+    $data_key = required_param('data_key', PARAM_INT);
     if ($action == 'renderform') {
+        $setting = get_config('local_rollover_wizard');
         $step = required_param('step', PARAM_INT);
         if($step == 1){
-            $mform = new \MoodleQuickForm('import_content_form','POST','#', $target = '', ['id' => 'import_content_form']);
+            // $mform = new \MoodleQuickForm('import_content_form','POST','#', $target = '', ['id' => 'import_content_form']);
             // // $radioarray=array();
-            $mform->addElement('hidden', 'rollover_step', $import_step);
-            $mform->addElement('radio', 'content_option', '', get_string('content_option1','local_rollover_wizard'), 'blanktemplate');
-            $mform->addElement('radio', 'content_option', '', get_string('content_option2','local_rollover_wizard'), 'previouscourse');
+            // $mform->addElement('hidden', 'rollover_step', $step);
+            // $mform->addElement('radio', 'content_option', '', get_string('content_option1','local_rollover_wizard'), 'blanktemplate');
+            // $mform->addElement('radio', 'content_option', '', get_string('content_option2','local_rollover_wizard'), 'previouscourse');
             
             $html = '<h2>Import Content</h2>'.'<p>Do you want to start from a blank template or import content from a previous course ?</p>';
-            $warning = local_rollover_wizard_verify_course(null, ($_SESSION['local_rollover_wizard']['target_course'])->id, false);
+            $warning = local_rollover_wizard_verify_course(null, ($_SESSION['local_rollover_wizard'][$data_key]['target_course'])->id, false);
             if(!empty($warning) && $warning !== '&nbsp;'){
                 $warning = "<div class='alert alert-warning'>".$warning."</div>";
             }
             $html.='<div class="alert-container">'.$warning.'</div>';
-            $html.= $mform->toHtml();
+            // $html.= $mform->toHtml();
+            $html .= '<div class="form-group row  fitem  ">
+                        <div class="col-md-3 col-form-label pb-0 pt-0">
+                        </div>
+                        <div class="col-md-9 checkbox">
+                            <div class="form-check d-flex">
+                                    <label class="form-check-label">
+                                        
+                                        <input type="radio" class="form-check-input" name="content_option" id="id_content_option_blanktemplate" value="blanktemplate">
+                                            Import a Blank Template
+                                    </label>
+                                    <div class="ml-2 d-flex align-items-center align-self-start">
+                                        
+                                    </div>
+                            </div>
+                            <div class="form-control-feedback invalid-feedback" id="id_error_content_option_blanktemplate">
+                                
+                            </div>
+                        </div>
+                    </div>';
+
+            $html .= '<div class="form-group row  fitem  ">
+                        <div class="col-md-3 col-form-label pb-0 pt-0">
+                        </div>
+                        <div class="col-md-9 checkbox">
+                            <div class="form-check d-flex">
+                                    <label class="form-check-label">
+                                        
+                                        <input type="radio" class="form-check-input" name="content_option" id="id_content_option_previouscourse" value="previouscourse">
+                                            Import content from previous course you were enrolled in
+                                    </label>
+                                    <div class="ml-2 d-flex align-items-center align-self-start">
+                                        
+                                    </div>
+                            </div>
+                            <div class="form-control-feedback invalid-feedback" id="id_error_content_option_previouscourse">
+                                
+                            </div>
+                        </div>
+                    </div>';
             display_result(200,['html' => $html]);
         }
         if($step == 2){
             $mode = required_param('mode', PARAM_TEXT);
             if($mode == 'previouscourse'){
-                $session_data = $_SESSION['local_rollover_wizard'];
+                $session_data = $_SESSION['local_rollover_wizard'][$data_key];
                 $target_course = $session_data['target_course'];
                 $html = '<h2 class="text-center">Import from previous course</h2>'
                 .'<p></p>';
@@ -62,53 +103,52 @@ if (confirm_sesskey()) {
                 $source_course = null;
                 $source_course_html = "";
                 // Preg Match source course here
-                
-                $setting = get_config('local_rollover_wizard');
-                $pattern = !empty($setting->pattern_match_course) ? $setting->pattern_match_course : null;
-                if(!empty($pattern)){
+                if(!empty($target_course->idnumber)){
                     $matches = [];
-                    preg_match('/([0-9]{4})('.$pattern.'+[0-9]*)$/', $target_course->idnumber, $matches);
-                    $target_academic_year = intval((empty($matches[1]) ? 0 : $matches[1]));
+                    preg_match('/(.*?)([0-9]{6})/', $target_course->idnumber, $matches);
+                    $target_academic_year = intval((empty($matches[2]) ? 0 : $matches[2]));
     
                     if (!empty($target_academic_year)) {
                         $courseids = [];
                         $academic_years = [];
                         $courses = $DB->get_records('course');
                         foreach($courses as $course){
-                            $codeidnumber = preg_replace('/([0-9]{4})([a-zA-Z]+[0-9]*)$/', '$2', $course->idnumber);
-                            if(!empty($codeidnumber) && $codeidnumber == $pattern){
-                                $acadidnumber = preg_replace('/([0-9]{4})([a-zA-Z]+[0-9]*)$/', '$1', $course->idnumber);
+                            $codeidnumber = preg_replace('/(.*?)([0-9]{6})/', '$1', $course->idnumber);
+                            if(!empty($codeidnumber) && $codeidnumber == $matches[1]){
+                                $acadidnumber = preg_replace('/(.*?)([0-9]{6})/', '$2', $course->idnumber);
                                 $acadidnumber = intval($acadidnumber);
                                 $courseids[$acadidnumber] = $course->id;
                                 $academic_years[] = $acadidnumber;
                             }
                         }
                         rsort($academic_years);
+                        list($target_start_year, $target_end_year) = preg_split('/(?<=.{4})/', $matches[2], 2);
                         $matched_courseid = null;
                         foreach($academic_years as $year){
-                            if($year < $target_academic_year){
+                            list($source_start_year, $source_end_year) = preg_split('/(?<=.{4})/', (string) $year, 2);
+                            
+                            if($source_start_year < $target_start_year && $source_end_year < $target_end_year){
                                 $matched_courseid = $courseids[$year];
                                 break;
                             }
                         }
                         if(!empty($matched_courseid)){
                             $session_data['source_course'] = $DB->get_record('course', ['id' => $matched_courseid]);
+    
                         }
                     }
-                    // echo "<pre>", var_dump($matches), "</pre><br>";
                 }
-                // echo "<pre>", var_dump($pattern), "</pre><br>";
-                // die();
+
                 if(!empty($session_data['source_course'])){
                     $source_course = $session_data['source_course'];
                 }
                 if(empty($source_course)){
                     $session_data['source_course'] = null;
-                    $_SESSION['local_rollover_wizard'] = $session_data;
+                    $_SESSION['local_rollover_wizard'][$data_key] = $session_data;
                     $source_course_html = "
                     <h6>Previous Course you were enrolled in : </h6>
                     <div>
-                    <a href='#' class='previewcourse_source_course_link' target='_blank'>Source Course Not Selected Yet</a>
+                    <a href='#' class='previewcourse_source_course_link rollover-disabled-link' target='_blank'>Source course not selected yet</a>
                     &nbsp;
                     <i class='fa fa-pencil changecoursebutton' style='cursor:pointer;'></i>
                     </div>";
@@ -116,7 +156,7 @@ if (confirm_sesskey()) {
                 else{
                     $session_data['source_course'] = $source_course;
                     $viewurl = new \moodle_url('/course/view.php', ['id' => $source_course->id]);
-                    $_SESSION['local_rollover_wizard'] = $session_data;
+                    $_SESSION['local_rollover_wizard'][$data_key] = $session_data;
                     $source_course_html = "
                     <h6>Previous Course you were enrolled in : </h6>
                     <div>
@@ -142,7 +182,7 @@ if (confirm_sesskey()) {
             }
             
             if($mode == 'blanktemplate'){
-                $session_data = $_SESSION['local_rollover_wizard'];
+                $session_data = $_SESSION['local_rollover_wizard'][$data_key];
                 $target_course = $session_data['target_course'];
                 $html = '<h2 class="text-center">Import a blank template</h2>'
                 .'<p></p>';
@@ -158,18 +198,18 @@ if (confirm_sesskey()) {
                 }
                 if(empty($source_course)){
                     $session_data['source_course'] = null;
-                    $_SESSION['local_rollover_wizard'] = $session_data;
+                    $_SESSION['local_rollover_wizard'][$data_key] = $session_data;
                     $source_course_html = "
                     <h6>Previous Course you were enrolled in : </h6>
                     <div>
-                    <a href='#' class='previewcourse_source_course_link' target='_blank'>Source Course Not Selected Yet</a>
+                    <a href='#' class='previewcourse_source_course_link' target='_blank'>Source course not selected yet</a>
                     &nbsp;
                     <i class='fa fa-pencil changecoursebutton' style='cursor:pointer;'></i>
                     </div>";
                 }
                 else{
                     $viewurl = new \moodle_url('/course/view.php', ['id' => $source_course->id]);
-                    $_SESSION['local_rollover_wizard'] = $session_data;
+                    $_SESSION['local_rollover_wizard'][$data_key] = $session_data;
                     $source_course_html = "
                     <h6>Previous Course you were enrolled in : </h6>
                     <div>
@@ -205,7 +245,7 @@ if (confirm_sesskey()) {
             $mode = required_param('mode', PARAM_TEXT);
             if($mode == 'previouscourse'){
                 
-                $session_data = $_SESSION['local_rollover_wizard'];
+                $session_data = $_SESSION['local_rollover_wizard'][$data_key];
                 $target_course = $session_data['target_course'];
                 
                 $source_course = null;
@@ -227,7 +267,7 @@ if (confirm_sesskey()) {
                 }
                 else{
                     $viewurl = new \moodle_url('/course/view.php', ['id' => $source_course->id]);
-                    $_SESSION['local_rollover_wizard'] = $session_data;
+                    $_SESSION['local_rollover_wizard'][$data_key] = $session_data;
                     $source_course_html = "
                     <h6>Previous Course you were enrolled in : </h6>
                     <div>
@@ -251,6 +291,9 @@ if (confirm_sesskey()) {
                 $course_sections = $DB->get_records('course_sections', ['course' => $source_course->id],'section ASC');
                 $iteration = 1;
                 $activity_types = [];
+                
+                $excluded_activitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
+                $excluded_activitytypes = array_map('trim', $excluded_activitytypes);
                 foreach($course_sections as $section){
                     $sequence = $section->sequence;
                     $html .= '<div class="card">';
@@ -273,14 +316,24 @@ if (confirm_sesskey()) {
                             if(empty($module_record->name)){
                                 continue;
                             }
+                            $disabled_attr = "";
+                            $disabled_style = "";
+                            $disabled = false;
+                            if(in_array($module_record->name, $excluded_activitytypes)){
+                                $disabled = true;
+                                $disabled_attr = "disabled";
+                                $disabled_style = "opacity: 50%;";
+                            }
                             $modshortname = $module_record->name;
                             $modfullname = get_string('pluginname', $modshortname);
-                            $activity_types[$modshortname] = $modfullname;
+                            if(!$disabled){
+                                $activity_types[$modshortname] = $modfullname;
+                            }
                             $modlogo = $OUTPUT->image_icon('monologo', $modshortname, $modshortname);
                             $activity_record = $DB->get_record($modshortname, ['id' => $cm->instance]);
                             $activity_name = $activity_record->name;
-                            $html .= "<div class='d-flex flex-row justify-content-start align-items-center' style='gap:25px;'>";
-                            $html .= '<div class="form-check"><input class="form-check-input position-static rollover-check-'.$modshortname.'" data-section="'.$section->section.'" data-module="'.$modshortname.'" name="rollover-wizard-cm[]" type="checkbox" value="'.$cm->id.'"></div>';
+                            $html .= "<div class='d-flex flex-row justify-content-start align-items-center' style='gap:25px;".$disabled_style."'>";
+                            $html .= '<div class="form-check"><input class="form-check-input position-static rollover-check-'.$modshortname.'" '.$disabled_attr.' data-section="'.$section->section.'" data-module="'.$modshortname.'" name="rollover-wizard-cm[]" type="checkbox" value="'.$cm->id.'"></div>';
                             $html .= $modlogo;
                             $html .= '<div class="d-flex flex-column text-left"><div class="text-uppercase small">'.$modshortname.'</div><div>'.$activity_name.'</div></div>';
                             if($cm->visible == 0){
@@ -308,7 +361,7 @@ if (confirm_sesskey()) {
             }
             
             if($mode == 'blanktemplate'){
-                $session_data = $_SESSION['local_rollover_wizard'];
+                $session_data = $_SESSION['local_rollover_wizard'][$data_key];
                 $target_course = $session_data['target_course'];
                 $html = '<h2 class="text-center">Import a blank template</h2>'
                 .'<p></p>';
@@ -324,18 +377,18 @@ if (confirm_sesskey()) {
                 }
                 if(empty($source_course)){
                     $session_data['source_course'] = null;
-                    $_SESSION['local_rollover_wizard'] = $session_data;
+                    $_SESSION['local_rollover_wizard'][$data_key] = $session_data;
                     $source_course_html = "
                     <h6>Template Course : </h6>
                     <div>
-                    <a href='#' class='previewcourse_source_course_link' target='_blank'>Source Course Not Selected Yet</a>
+                    <a href='#' class='previewcourse_source_course_link' target='_blank'>Source course not selected yet</a>
                     &nbsp;
                     <i class='fa fa-pencil changecoursebutton' style='cursor:pointer;'></i>
                     </div>";
                 }
                 else{
                     $viewurl = new \moodle_url('/course/view.php', ['id' => $source_course->id]);
-                    $_SESSION['local_rollover_wizard'] = $session_data;
+                    $_SESSION['local_rollover_wizard'][$data_key] = $session_data;
                     $source_course_html = "
                     <h6>Template Course : </h6>
                     <div>
@@ -365,7 +418,7 @@ if (confirm_sesskey()) {
             $mode = required_param('mode', PARAM_TEXT);
             if($mode == 'previouscourse'){
 
-                $session_data = $_SESSION['local_rollover_wizard'];
+                $session_data = $_SESSION['local_rollover_wizard'][$data_key];
                 $target_course = $session_data['target_course'];
                 $html = '<h2 class="text-center">Import from previous course</h2>'
                 .'<p></p>'
@@ -403,6 +456,9 @@ if (confirm_sesskey()) {
                 $course_sections = $DB->get_records('course_sections', ['course' => $source_course->id],'section ASC');
                 $iteration = 1;
                 $activity_types = [];
+                
+                $excluded_activitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
+                $excluded_activitytypes = array_map('trim', $excluded_activitytypes);
                 foreach($course_sections as $section){
                     $sequence = $section->sequence;
                     $html .= '<tr>';
@@ -419,15 +475,25 @@ if (confirm_sesskey()) {
                             if(empty($module_record->name)){
                                 continue;
                             }
+                            $disabled_attr = "";
+                            $disabled_style = "";
+                            $disabled = false;
+                            if(in_array($module_record->name, $excluded_activitytypes)){
+                                $disabled = true;
+                                $disabled_attr = "disabled";
+                                $disabled_style = "opacity: 50%;";
+                            }
                             $modshortname = $module_record->name;
                             $modfullname = get_string('pluginname', $modshortname);
-                            $activity_types[$modshortname] = $modfullname;
+                            if(!$disabled){
+                                $activity_types[$modshortname] = $modfullname;
+                            }
                             $modlogo = $OUTPUT->image_icon('monologo', $modshortname, $modshortname);
                             $activity_record = $DB->get_record($modshortname, ['id' => $cm->instance]);
                             $activity_name = $activity_record->name;
                             $html .= "<tr>";
                             $html .= "<td>";
-                            $html .= "<div class='d-flex flex-row justify-content-start align-items-center' style='gap:25px;'>";
+                            $html .= "<div class='d-flex flex-row justify-content-start align-items-center' style='gap:25px;".$disabled_style."'>";
                             $html .= $modlogo;
                             $html .= '<div class="d-flex flex-column text-left"><div class="text-uppercase small">'.$modshortname.'</div><div>'.$activity_name.'</div></div>';
                             if($cm->visible == 0){
@@ -475,7 +541,7 @@ if (confirm_sesskey()) {
             }
             if($mode == 'blanktemplate'){
 
-                $session_data = $_SESSION['local_rollover_wizard'];
+                $session_data = $_SESSION['local_rollover_wizard'][$data_key];
                 $target_course = $session_data['target_course'];
                 $html = '<h2 class="text-center">Import a blank template</h2>'
                 .'<p></p>'
@@ -511,6 +577,9 @@ if (confirm_sesskey()) {
                 $course_sections = $DB->get_records('course_sections', ['course' => $source_course->id],'section ASC');
                 $iteration = 1;
                 $activity_types = [];
+                
+                $excluded_activitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
+                $excluded_activitytypes = array_map('trim', $excluded_activitytypes);
                 foreach($course_sections as $section){
                     $sequence = $section->sequence;
                     $html .= '<tr>';
@@ -527,15 +596,25 @@ if (confirm_sesskey()) {
                             if(empty($module_record->name)){
                                 continue;
                             }
+                            $disabled_attr = "";
+                            $disabled_style = "";
+                            $disabled = false;
+                            if(in_array($module_record->name, $excluded_activitytypes)){
+                                $disabled = true;
+                                $disabled_attr = "disabled";
+                                $disabled_style = "opacity: 50%;";
+                            }
                             $modshortname = $module_record->name;
                             $modfullname = get_string('pluginname', $modshortname);
-                            $activity_types[$modshortname] = $modfullname;
+                            if(!$disabled){
+                                $activity_types[$modshortname] = $modfullname;
+                            }
                             $modlogo = $OUTPUT->image_icon('monologo', $modshortname, $modshortname);
                             $activity_record = $DB->get_record($modshortname, ['id' => $cm->instance]);
                             $activity_name = $activity_record->name;
                             $html .= "<tr>";
                             $html .= "<td>";
-                            $html .= "<div class='d-flex flex-row justify-content-start align-items-center' style='gap:25px;'>";
+                            $html .= "<div class='d-flex flex-row justify-content-start align-items-center' style='gap:25px;".$disabled_style."'>";
                             $html .= $modlogo;
                             $html .= '<div class="d-flex flex-column text-left"><div class="text-uppercase small">'.$modshortname.'</div><div>'.$activity_name.'</div></div>';
                             if($cm->visible == 0){
@@ -546,9 +625,9 @@ if (confirm_sesskey()) {
                             $html .= "<td>";
 
                             $is_selected = true;
-                            // if(in_array($cm->id,$processed_activity[$section->section])){
-                            //     $is_selected = true;
-                            // }
+                            if($disabled){
+                                $is_selected = false;
+                            }
 
                             if($is_selected){
                                 $html .= "<h4><i class='fa fa-check text-success'></h4>";
@@ -605,7 +684,7 @@ if (confirm_sesskey()) {
             
             $html .= "<div class='d-flex justify-content-center align-items-center w-100 h-100'>";
 
-            $session_data = $_SESSION['local_rollover_wizard'];
+            $session_data = $_SESSION['local_rollover_wizard'][$data_key];
             $target_course = $session_data['target_course'];
 
             $source_course = $session_data['source_course'];
@@ -662,26 +741,27 @@ if (confirm_sesskey()) {
     }
     else if($action == 'savesourcecourseid'){
         $source_courseid = required_param('sourcecourseid', PARAM_INT);
+        $data_key = required_param('data_key', PARAM_INT);
         $mode = required_param('mode', PARAM_TEXT);
         $status = 403;
         $result = null;
         // -1 mean deselect source course
         if($source_courseid > -1){
             if($record = $DB->get_record('course',['id' => $source_courseid])){
-                $session_data = $_SESSION['local_rollover_wizard'];
+                $session_data = $_SESSION['local_rollover_wizard'][$data_key];
                 $session_data['source_course'] = $record;
                 $session_data['mode'] = $mode;
-                $_SESSION['local_rollover_wizard'] = $session_data;
+                $_SESSION['local_rollover_wizard'][$data_key] = $session_data;
                 $result = $record;
                 $status = 200;
             }
         }
         else{
-            $session_data = $_SESSION['local_rollover_wizard'];
+            $session_data = $_SESSION['local_rollover_wizard'][$data_key];
             $session_data['source_course'] = null;
             $session_data['selected_activity'] = null;
             $session_data['mode'] = null;
-            $_SESSION['local_rollover_wizard'] = $session_data;
+            $_SESSION['local_rollover_wizard'][$data_key] = $session_data;
             $result = null;
             $status = 200;
         }
@@ -689,20 +769,22 @@ if (confirm_sesskey()) {
     }
     else if($action == 'saveselectedactivity'){
         $selected_activity = required_param('selectedactivity', PARAM_TEXT);
-        $session_data = $_SESSION['local_rollover_wizard'];
+        $data_key = required_param('data_key', PARAM_INT);
+        $session_data = $_SESSION['local_rollover_wizard'][$data_key];
         $result = json_decode($selected_activity);
         $session_data['selected_activity'] = $result;
-        $_SESSION['local_rollover_wizard'] = $session_data;
+        $_SESSION['local_rollover_wizard'][$data_key] = $session_data;
         display_result(200,['data' => $result]);
     }
     else if($action == 'startrollover'){
         $mode = required_param('mode', PARAM_TEXT);
+        $data_key = required_param('data_key', PARAM_INT);
         $setting = get_config('local_rollover_wizard');
 
         $excluded_activitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
         $excluded_activitytypes = array_map('trim', $excluded_activitytypes);
 
-        $session_data = $_SESSION['local_rollover_wizard'];
+        $session_data = $_SESSION['local_rollover_wizard'][$data_key];
         $target_course = $session_data['target_course'];
         $source_course = $session_data['source_course'];
         
@@ -1056,13 +1138,15 @@ if (confirm_sesskey()) {
         );
         $courses = [];
         foreach ($result as $course) {
-            $context = \context_course::instance($course->id);
-            $enrolled = is_enrolled($context,$USER);
-            if(is_siteadmin($USER)){
-                $enrolled = true;
-            }
-            if(!$enrolled){
-                continue;
+            if($mode == 'previouscourse'){
+                $context = \context_course::instance($course->id);
+                $enrolled = is_enrolled($context,$USER);
+                if(is_siteadmin($USER)){
+                    $enrolled = true;
+                }
+                if(!$enrolled){
+                    continue;
+                }
             }
             $obj = new stdClass;
             $obj->id = $course->id;

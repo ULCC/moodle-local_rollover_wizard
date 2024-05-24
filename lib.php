@@ -38,10 +38,27 @@ function local_rollover_wizard_extend_navigation_course(navigation_node $navigat
     global $PAGE, $CFG;
     
     if (has_capability('local/rollover_wizard:edit', $context)) {
-        $_SESSION['local_rollover_wizard']['target_course'] = $course;
-        $_SESSION['local_rollover_wizard']['source_course'] = null;
-        $_SESSION['local_rollover_wizard']['selected_activity'] = null;
-        $_SESSION['local_rollover_wizard']['mode'] = null;
+        $session_data = [];
+        // $_SESSION['local_rollover_wizard']['target_course'] = $course;
+        // $_SESSION['local_rollover_wizard']['source_course'] = null;
+        // $_SESSION['local_rollover_wizard']['selected_activity'] = null;
+        // $_SESSION['local_rollover_wizard']['mode'] = null;
+        foreach($_SESSION['local_rollover_wizard'] as $key => $object){
+            if(is_array($object)){
+                $target_course = $object['target_course'];
+                if($target_course->id == $course->id){
+                    unset($_SESSION['local_rollover_wizard'][$key]);
+                    break;
+                }
+            }
+        }
+        $session_data['target_course'] = $course;
+        $session_data['source_course'] = null;
+        $session_data['selected_activity'] = null;
+        $session_data['mode'] = null;
+        $key = time();
+        $_SESSION['local_rollover_wizard'][$key] = $session_data;
+        $_SESSION['local_rollover_wizard']['key'] = $key;
         $PAGE->requires->js( new moodle_url($CFG->wwwroot . '/local/rollover_wizard/script/app.js') );
         $navigation->add(get_string('importcourse','local_rollover_wizard'), '#', navigation_node::TYPE_SETTING, null, 'rolloverwizard', new pix_icon('i/report', ''));
     }
@@ -303,6 +320,134 @@ function local_rollover_wizard_executerollover()
             $DB->update_record('local_rollover_wizard_log', $rolloverqueue);
         }
 
+        // Rollover Blocks
+
+        try {
+            // Processing blocks
+            $sql = "SELECT DISTINCT blocks.blockname FROM {course} course
+                    INNER JOIN {context} context
+                        ON context.instanceid = course.id
+                    LEFT JOIN {block_instances} blocks
+                        ON context.id = blocks.parentcontextid
+                    WHERE course.id = :courseid";
+
+            $sourceblocks = $DB->get_records_sql($sql, ['courseid' => $rolloverqueue->sourcecourseid]);
+            $sourceblocks = array_filter(array_keys($sourceblocks));
+
+            $targetblocks = $DB->get_records_sql($sql, ['courseid' => $rolloverqueue->targetcourseid]);
+            $targetblocks = array_filter(array_keys($targetblocks));
+
+            $blocks_to_rollover = array_diff($sourceblocks, $targetblocks);
+            $blocks_to_rollover = array_filter($blocks_to_rollover,
+                static function ($element) {return $element != 'html';});
+            $blocknames = ['side-pre' => $blocks_to_rollover];
+
+            $course = $DB->get_record('course', ['id' => $rolloverqueue->targetcourseid]);
+
+            if (!empty($course)) {
+                $page = new moodle_page();
+                $page->set_course($course);
+                $page->blocks->add_blocks($blocknames, 'course-view-*');
+            }
+
+            // Keep block positions in the region as they are in the source course
+            foreach ($blocks_to_rollover as $block) {
+
+                $sql = "SELECT DISTINCT blocks.defaultweight FROM {course} course
+                        INNER JOIN {context} context
+                            ON context.instanceid = course.id
+                        LEFT JOIN {block_instances} blocks
+                            ON context.id = blocks.parentcontextid
+                        WHERE course.id = :courseid AND blocks.blockname = :blockname";
+                $defaultweight = $DB->get_field_sql($sql, ['courseid' => $rolloverqueue->sourcecourseid, 'blockname' => $block]);
+
+                $sql = "SELECT DISTINCT blocks.id FROM {course} course
+                        INNER JOIN {context} context
+                            ON context.instanceid = course.id
+                        LEFT JOIN {block_instances} blocks
+                            ON context.id = blocks.parentcontextid
+                        WHERE course.id = :courseid AND blocks.blockname = :blockname";
+                $sourceinstanceid = $DB->get_field_sql($sql, ['courseid' => $rolloverqueue->sourcecourseid, 'blockname' => $block]);
+
+                $sql = "SELECT blocks.id, blocks.defaultweight, blocks.blockname FROM {course} course
+                        INNER JOIN {context} context
+                            ON context.instanceid = course.id
+                        LEFT JOIN {block_instances} blocks
+                            ON context.id = blocks.parentcontextid
+                        WHERE course.id = :courseid AND blocks.blockname = :blockname";
+                $targetblocks = $DB->get_records_sql($sql, ['courseid' => $rolloverqueue->targetcourseid, 'blockname' => $block]);
+
+                
+                $sql = "SELECT DISTINCT blocks.parentcontextid FROM {course} course
+                        INNER JOIN {context} context
+                            ON context.instanceid = course.id
+                        LEFT JOIN {block_instances} blocks
+                            ON context.id = blocks.parentcontextid
+                        WHERE course.id = :courseid AND blocks.blockname = :blockname";
+                $targetcontextid = $DB->get_field_sql($sql, ['courseid' => $rolloverqueue->targetcourseid, 'blockname' => $block]);
+
+                foreach ($targetblocks as $targetblock) {
+                    $targetblock->defaultweight = $defaultweight;
+                    $DB->update_record('block_instances', $targetblock);
+                    if($record = $DB->get_record('block_positions',['blockinstanceid' => $targetblock->id])){
+                        $sql = "UPDATE {block_positions} SET weight = :weight WHERE blockinstanceid = :blockinstanceid";
+                        $DB->execute($sql, ['weight' => $defaultweight, 'blockinstanceid' => $targetblock->id]);
+                    }
+                    else{
+                        if($record = $DB->get_record('block_positions',['blockinstanceid' => $sourceinstanceid])){
+                            unset($record->id);
+                            $record->blockinstanceid = $targetblock->id;
+                            $record->contextid = $targetcontextid;
+                            $DB->insert_record('block_positions', $record);
+                        }
+                    }
+                }
+            }
+
+            if (!empty($course)) {
+                
+                $sql = "SELECT DISTINCT blocks.parentcontextid FROM {course} course
+                        INNER JOIN {context} context
+                            ON context.instanceid = course.id
+                        LEFT JOIN {block_instances} blocks
+                            ON context.id = blocks.parentcontextid
+                        WHERE course.id = :courseid AND blocks.blockname = :blockname";
+                $targetcontextid = $DB->get_field_sql($sql, ['courseid' => $rolloverqueue->targetcourseid, 'blockname' => $block]);
+                $sourcehtmlblocks = local_rollover_wizard_get_htmlblocks_by_course($rolloverqueue->sourcecourseid);
+                $targethtmlblocks = local_rollover_wizard_get_htmlblocks_by_course($rolloverqueue->targetcourseid);
+                $htmlblocks_to_rollover = array_diff(array_keys($sourcehtmlblocks), array_keys($targethtmlblocks));
+                foreach ($htmlblocks_to_rollover as $htmlblock) {
+                    $page = new moodle_page();
+                    $page->set_course($course);
+                    $page->blocks->add_blocks(['side-pre' => ['html']], 'course-view-*');
+
+                    $sql = "SELECT * FROM {block_instances} WHERE blockname = 'html' ORDER BY id DESC LIMIT 1";
+                    $new_targethtmlblock = $DB->get_record_sql($sql);
+
+                    $new_targethtmlblock->defaultweight = $sourcehtmlblocks[$htmlblock]->defaultweight;
+                    $new_targethtmlblock->configdata = $sourcehtmlblocks[$htmlblock]->configdata;
+                    $DB->update_record('block_instances', $new_targethtmlblock);
+
+                    if($record = $DB->get_record('block_positions',['blockinstanceid' => $new_targethtmlblock->id])){
+                        $sql = "UPDATE {block_positions} SET weight = :weight WHERE blockinstanceid = :blockinstanceid";
+                        $DB->execute($sql, ['weight' => $sourcehtmlblocks[$htmlblock]->defaultweight, 'blockinstanceid' => $new_targethtmlblock->id]);
+                    }
+                    else{
+                        if($record = $DB->get_record('block_positions',['blockinstanceid' => $sourcehtmlblocks[$htmlblock]->id])){
+                            unset($record->id);
+                            $record->blockinstanceid = $new_targethtmlblock->id;
+                            $record->contextid = $targetcontextid;
+                            $DB->insert_record('block_positions', $record);
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            mtrace("Error at adding blocks from courseid $rolloverqueue->sourcecourseid to courseid $rolloverqueue->targetcourseid: " . $e->getMessage());
+        }
+
+        // End of Rollover Blocks
+
         // Purge Caches
         rebuild_course_cache($rolloverqueue->targetcourseid, true);
         mtrace('TaskID ' . $rolloverqueue->taskid . ' finished.');
@@ -476,7 +621,7 @@ function local_rollover_wizard_is_crontask($courseid){
     $setting = get_config('local_rollover_wizard');
     $course = local_rollover_wizard_course_filesize($courseid);
     $max_filesize = ((($setting->cron_size_threshold * 1024) * 1024) * 1024);
-    return $course->filesize >= $max_filesize;
+    return $course && $course->filesize >= $max_filesize;
 }
 function local_rollover_wizard_course_filesize($courseid) {
     global $DB;
@@ -512,4 +657,19 @@ function local_rollover_wizard_course_filesize($courseid) {
     ORDER BY rc.filesize DESC";
     $course = $DB->get_record_sql($sql);
     return $course;
+}
+
+function local_rollover_wizard_get_htmlblocks_by_course($courseid)
+{
+    global $DB;
+
+    $sql = "SELECT blocks.*
+            FROM {course} course
+            JOIN {context} context ON context.instanceid = course.id
+            JOIN {block_instances} blocks ON context.id = blocks.parentcontextid
+            WHERE blocks.blockname IS NOT NULL AND blocks.blockname = 'html' AND course.id = :courseid";
+
+    $course_htmlblocks = $DB->get_records_sql($sql, ['courseid' => $courseid]);
+
+    return $course_htmlblocks;
 }

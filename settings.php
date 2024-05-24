@@ -31,7 +31,7 @@ if ($hassiteconfig) {
             'rollover_wizard_settings',
             new lang_string(
                 'setting_page:category',
-                'rollover_wizard'
+                'local_rollover_wizard'
             )
         )
     );
@@ -45,9 +45,8 @@ if ($hassiteconfig) {
                                                 'Tick this checkbox to enable email function to notify the author after the rollover completes.', null);
     $settings->add($element);
 
-    $settings->add($element);
-    $element = new admin_setting_configtext('local_rollover_wizard/pattern_match_course', 'Pattern Match for Matching Course','', null);
-    $settings->add($element);
+    // $element = new admin_setting_configtext('local_rollover_wizard/pattern_match_course', 'Pattern Match for Matching Course','', null);
+    // $settings->add($element);
 
     $displaylist = \core_course_category::make_categories_list('moodle/course:create');
     $element = new admin_setting_configselect_autocomplete('local_rollover_wizard/identifier_template_course', 'Identifier for template courses','', 0,  $displaylist);

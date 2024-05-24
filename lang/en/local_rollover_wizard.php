@@ -31,6 +31,8 @@ $string['rollover_wizard:edit'] = 'Allow access to Content Rollover Wizard';
 $string['content_option1'] = 'Import a Blank Template';
 $string['content_option2'] = 'Import content from previous course you were enrolled in';
 
+$string['setting_page:category'] = 'Rollover Wizard';
+
 $string['emailtemplate'] = '
 Dear {FULLNAME},
 <br><br>
