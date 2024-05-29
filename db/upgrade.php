@@ -132,7 +132,7 @@ function xmldb_local_rollover_wizard_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2024041518, 'local', 'rollover_wizard');
     }
 
-    if ($oldversion < 2024041524) {
+    if ($oldversion < 2024052901) {
 
         // Define table rollover_wizard_coursesize to be created.
         $table = new xmldb_table('rollover_wizard_coursesize');
@@ -153,7 +153,7 @@ function xmldb_local_rollover_wizard_upgrade($oldversion) {
         }
 
         // Rollover_wizard savepoint reached.
-        upgrade_plugin_savepoint(true, 2024041524, 'local', 'rollover_wizard');
+        upgrade_plugin_savepoint(true, 2024052901, 'local', 'rollover_wizard');
     }
 
     return true;
