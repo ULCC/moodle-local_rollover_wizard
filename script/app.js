@@ -542,7 +542,7 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                         }
                     }
                 });
-            }, 4000);
+            }, 3000);
         }
         if(rollover_process_mode == 'cron'){
             modal.destroy();

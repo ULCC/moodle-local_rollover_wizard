@@ -12,8 +12,8 @@ global $PAGE, $USER, $DB, $CFG, $OUTPUT;
 rebuild_course_cache(0, true);
 purge_all_caches();
 
-$coursesize = local_rollover_wizard_course_filesize(2);
-echo "<pre>", var_dump($coursesize), "</pre>";
+// $coursesize = local_rollover_wizard_course_filesize(2);
+// echo "<pre>", var_dump($coursesize), "</pre>";
 
 // echo "<pre>", var_dump($_SESSION['local_rollover_wizard']), "</pre>";
 
@@ -54,3 +54,8 @@ echo "<pre>", var_dump($coursesize), "</pre>";
 // }
 
 // echo "<pre>", var_dump(local_rollover_wizard_is_crontask(15)), "</pre>";
+
+
+$url = (new moodle_url('/local/rollover_wizard/workerfile.php'));
+
+echo "<pre>", var_dump($_SERVER), "</pre>";

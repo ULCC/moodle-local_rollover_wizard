@@ -628,8 +628,9 @@ function local_rollover_wizard_is_crontask($courseid){
     $is_cron = true;
     if($coursesize = $DB->get_record('rollover_wizard_coursesize', ['courseid' => $courseid])){
         $max_filesize = ((($setting->cron_size_threshold * 1024) * 1024) * 1024);
-        $is_cron = $coursesize->filesize >= $max_filesize;
+        $is_cron = $coursesize && $coursesize->filesize >= $max_filesize;
     }
+    $is_cron = false;
     return $is_cron;
 }
 function local_rollover_wizard_course_filesize($courseid) {

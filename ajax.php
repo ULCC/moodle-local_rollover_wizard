@@ -529,7 +529,7 @@ if (confirm_sesskey()) {
                 
                 // process identifier wheter task should be CRON or instant
                 $is_cron = local_rollover_wizard_is_crontask($source_course->id);
-                // $is_cron = true; 
+                // $is_cron = false; 
                 if($is_cron){
                     $html .= '<input type="hidden" id="rollover_process_mode" value="cron">';
                 }
@@ -650,7 +650,7 @@ if (confirm_sesskey()) {
                 
                 // process identifier wheter task should be CRON or instant
                 $is_cron = local_rollover_wizard_is_crontask($source_course->id);
-                $is_cron = false;
+                // $is_cron = false;
                 if($is_cron){
                     $html .= '<input type="hidden" id="rollover_process_mode" value="cron">';
                 }
@@ -690,7 +690,7 @@ if (confirm_sesskey()) {
             $source_course = $session_data['source_course'];
 
             $is_cron = local_rollover_wizard_is_crontask($source_course->id);
-            $is_cron = false; 
+            // $is_cron = false; 
             if($is_cron){
                 $taskname = 'local_rollover_wizard\task\execute_rollover';
     
@@ -806,7 +806,7 @@ if (confirm_sesskey()) {
         $instantexecute = 1;
         
         $is_cron = local_rollover_wizard_is_crontask($source_course->id);
-        $is_cron = false; 
+        // $is_cron = false; 
         if($is_cron){
             $instantexecute = 0;
         }
