@@ -132,6 +132,29 @@ function xmldb_local_rollover_wizard_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2024041518, 'local', 'rollover_wizard');
     }
 
+    if ($oldversion < 2024041524) {
+
+        // Define table rollover_wizard_coursesize to be created.
+        $table = new xmldb_table('rollover_wizard_coursesize');
+
+        // Adding fields to table rollover_wizard_coursesize.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('size', XMLDB_TYPE_INTEGER, '20', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('timeupdated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys to table rollover_wizard_coursesize.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+
+        // Conditionally launch create table for rollover_wizard_coursesize.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Rollover_wizard savepoint reached.
+        upgrade_plugin_savepoint(true, 2024041524, 'local', 'rollover_wizard');
+    }
 
     return true;
 }

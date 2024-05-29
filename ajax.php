@@ -650,7 +650,7 @@ if (confirm_sesskey()) {
                 
                 // process identifier wheter task should be CRON or instant
                 $is_cron = local_rollover_wizard_is_crontask($source_course->id);
-                // $is_cron = true; 
+                $is_cron = false;
                 if($is_cron){
                     $html .= '<input type="hidden" id="rollover_process_mode" value="cron">';
                 }
@@ -690,7 +690,7 @@ if (confirm_sesskey()) {
             $source_course = $session_data['source_course'];
 
             $is_cron = local_rollover_wizard_is_crontask($source_course->id);
-            // $is_cron = true; 
+            $is_cron = false; 
             if($is_cron){
                 $taskname = 'local_rollover_wizard\task\execute_rollover';
     
@@ -806,7 +806,7 @@ if (confirm_sesskey()) {
         $instantexecute = 1;
         
         $is_cron = local_rollover_wizard_is_crontask($source_course->id);
-        // $is_cron = true; 
+        $is_cron = false; 
         if($is_cron){
             $instantexecute = 0;
         }
@@ -857,6 +857,8 @@ if (confirm_sesskey()) {
         // Run the specified task (this will output an error if it doesn't exist).
         \core\task\manager::run_from_cli($task);
 
+        exit;
+
     }
     else if ($action == 'checkrolloverstate') {
 
@@ -883,20 +885,29 @@ if (confirm_sesskey()) {
         $mode = required_param('mode', PARAM_TEXT);
         if($mode == 'previouscourse'){
             if ($categoryid == 0 && $courseid > 0) {
-                $course = $DB->get_record('course', ['id' => $courseid]);
-                $categoryid = $course->category;
-                $superparent = false;
-                do {
-                    $current_categoryid = $categoryid;
-                    $category = $DB->get_record('course_categories', ['id' => $current_categoryid]);
-                    if ($category->depth == 1 || $category->parent == 0) {
-                        $superparent = true;
-                        $categoryid = $category->id;
-                    } else {
-                        $categoryid = $category->parent;
+                $allowedcategories = [];
+                
+                if(!is_siteadmin($USER)){
+                    $my_courses = enrol_get_my_courses();
+                    foreach($my_courses as $course){
+                        
+                        $categoryid = $course->category;
+                        $superparent = false;
+                        do {
+                            $current_categoryid = $categoryid;
+                            $category = $DB->get_record('course_categories', ['id' => $current_categoryid]);
+                            if ($category->depth == 1 || $category->parent == 0) {
+                                $superparent = true;
+                                $categoryid = $category->id;
+                                $allowedcategories[] = $categoryid;
+                            } else {
+                                $allowedcategories[] = $categoryid;
+                                $categoryid = $category->parent;
+                            }
+                        } while (!$superparent);
                     }
-                } while (!$superparent);
-    
+                }
+
                 $categories = [];
                 $curcategory = core_course_category::top();
                 $curcategories = $curcategory->get_children();
@@ -904,18 +915,7 @@ if (confirm_sesskey()) {
                 foreach ($curcategories as $category) {
                     $courses = $DB->get_records('course', ['category' => $category->id]);
                     $has_enrol = false;
-                    foreach($courses as $course){
-                        $context = \context_course::instance($course->id);
-                        $enrolled = is_enrolled($context,$USER);
-                        if(is_siteadmin($USER)){
-                            $enrolled = true;
-                        }
-                        if($enrolled){
-                            $has_enrol = true;
-                            break;
-                        }
-                    }
-                    if(!$has_enrol){
+                    if(!is_siteadmin($USER) && !in_array($category->id,$allowedcategories)){
                         continue;
                     }
                     $obj = new stdClass;
@@ -944,39 +944,6 @@ if (confirm_sesskey()) {
     
                 echo json_encode(['categories' => $categories, 'courses' => $courses]);
                 exit;
-            } else if ($categoryid == 0) {
-                $curcategories = \core_course_category::top()->get_children();
-    
-                $categories = [];
-                foreach ($curcategories as $category) {
-                    $courses = $DB->get_records('course', ['category' => $category->id]);
-                    $has_enrol = false;
-                    foreach($courses as $course){
-                        $context = \context_course::instance($course->id);
-                        $enrolled = is_enrolled($context,$USER);
-                        if(is_siteadmin($USER)){
-                            $enrolled = true;
-                        }
-                        if($enrolled){
-                            $has_enrol = true;
-                            break;
-                        }
-                    }
-                    if(!$has_enrol){
-                        continue;
-                    }
-                    $obj = new stdClass;
-                    $obj->id = $category->id;
-                    $obj->name = $category->name;
-                    $categories[] = $obj;
-                }
-                if (empty($categories)) {
-                    echo '';
-                    exit;
-                } else {
-                    echo json_encode(['categories' => $categories, 'courses' => []]);
-                    exit;
-                }
             } else {
                 $directparentid = $DB->get_field('course_categories', 'parent', ['id' => $categoryid]);
                 // $parent_category = $DB->get_record('course_categories', ['id' => $categoryid]);
@@ -997,20 +964,20 @@ if (confirm_sesskey()) {
                 foreach ($curcategories as $category) {
                     $courses = $DB->get_records('course', ['category' => $category->id]);
                     $has_enrol = false;
-                    foreach($courses as $course){
-                        $context = \context_course::instance($course->id);
-                        $enrolled = is_enrolled($context,$USER);
-                        if(is_siteadmin($USER)){
-                            $enrolled = true;
-                        }
-                        if($enrolled){
-                            $has_enrol = true;
-                            break;
-                        }
-                    }
-                    if(!$has_enrol){
-                        continue;
-                    }
+                    // foreach($courses as $course){
+                    //     $context = \context_course::instance($course->id);
+                    //     $enrolled = is_enrolled($context,$USER);
+                    //     if(is_siteadmin($USER)){
+                    //         $enrolled = true;
+                    //     }
+                    //     if($enrolled){
+                    //         $has_enrol = true;
+                    //         break;
+                    //     }
+                    // }
+                    // if(!$has_enrol){
+                    //     continue;
+                    // }
                     $obj = new stdClass;
                     $obj->id = $category->id;
                     $obj->name = $category->name;
@@ -1170,6 +1137,8 @@ if (confirm_sesskey()) {
         $warnings = local_rollover_wizard_verify_course($sourcecourseid, $targetcourseid, false);
 
         echo $warnings;
+
+        exit;
     }
 }
 

@@ -619,9 +619,18 @@ function local_rollover_wizard_is_crontask($courseid){
     global $DB;
     
     $setting = get_config('local_rollover_wizard');
-    $course = local_rollover_wizard_course_filesize($courseid);
-    $max_filesize = ((($setting->cron_size_threshold * 1024) * 1024) * 1024);
-    return $course && $course->filesize >= $max_filesize;
+    // Old Code
+    // $course = local_rollover_wizard_course_filesize($courseid);
+    // $max_filesize = ((($setting->cron_size_threshold * 1024) * 1024) * 1024);
+    // return $course && $course->filesize >= $max_filesize;
+
+    // New Code
+    $is_cron = true;
+    if($coursesize = $DB->get_record('rollover_wizard_coursesize', ['courseid' => $courseid])){
+        $max_filesize = ((($setting->cron_size_threshold * 1024) * 1024) * 1024);
+        $is_cron = $coursesize->filesize >= $max_filesize;
+    }
+    return $is_cron;
 }
 function local_rollover_wizard_course_filesize($courseid) {
     global $DB;

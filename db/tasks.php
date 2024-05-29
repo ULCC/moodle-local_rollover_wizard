@@ -18,5 +18,15 @@ $tasks = array(
         'dayofweek' => '*',
         'month' => '*',
         'disabled' => 1
-    )
+    ),
+    array(
+        'classname' => 'local_rollover_wizard\task\calculate_course_size',
+        'blocking' => 0,
+        'minute' => '0',
+        'hour' => '2',
+        'day' => '*',
+        'dayofweek' => '*',
+        'month' => '*',
+        'disabled' => 1
+    ),
 );

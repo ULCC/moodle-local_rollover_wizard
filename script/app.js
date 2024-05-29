@@ -22,6 +22,25 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
     var wizard_taskid = null;
     var data_key = null;
     $(document).ready(function(){
+        var promise = ajax('retrievesessiondata');
+        promise.then(function(result){
+            if (result.length != 0) {
+                var result = JSON.parse(result);
+                if(result.status == 200){
+                    var data = result.data.data;
+                    if(data_key === null){
+                        data_key = data.key;
+                    }
+                    data = data[data_key];
+                    if(data['source_course']){
+                        wizard_source_courseid = data['source_course']['id'];
+                    }
+                    if(data['target_course']){
+                        wizard_target_courseid = data['target_course']['id'];
+                    }
+                }
+            }
+        });
         $('.nav-item').on('click', function(e){
             if($(this).data('key') == 'rolloverwizard'){
                 wizard_step = 1;
