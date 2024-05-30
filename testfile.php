@@ -59,3 +59,10 @@ purge_all_caches();
 $url = (new moodle_url('/local/rollover_wizard/workerfile.php'));
 
 echo "<pre>", var_dump($_SERVER), "</pre>";
+
+if( \filter_var( \ini_get('allow_url_fopen'), \FILTER_VALIDATE_BOOLEAN ) ) {
+    echo "<br>allow url fopen enabled<br>";
+}
+if( \filter_var( \ini_get('openssl'), \FILTER_VALIDATE_BOOLEAN ) ) {
+    echo "<br>openssl enabled<br>";
+}

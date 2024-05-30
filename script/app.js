@@ -529,7 +529,7 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                                 var root = main_modal.getRoot();
                                 var data = result.data;
                                 var percentage = parseInt(data.percentage);
-                                if(data.rolloverstatus != 'Successful' && data.rolloverstatus != 'Unsuccessful'){
+                                if(data.rolloverstatus != 'Successful' && data.rolloverstatus != 'Unsuccessful' && data.rolloverstatus != 'Partly-Successful'){
                                     $(root).find('#rollover-progress-bar').css('width', percentage+"%");
                                 }
                                 else{
