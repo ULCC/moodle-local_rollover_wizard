@@ -12,7 +12,7 @@ require_once $CFG->dirroot . '/local/rollover_wizard/lib.php';
 require_once $CFG->dirroot . '/lib/formslib.php';
 require_once $CFG->libdir . '/cronlib.php';
 
-global $CFG, $DB, $USER;
+global $CFG, $DB, $USER, $PAGE;
 
 if (!isloggedin()) {
     echo '';
@@ -292,6 +292,9 @@ if (confirm_sesskey()) {
                 $iteration = 1;
                 $activity_types = [];
                 
+                $coursecontext = \context_course::instance($target_course->id);
+                $PAGE->set_context($coursecontext);
+                
                 $excluded_activitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
                 $excluded_activitytypes = array_map('trim', $excluded_activitytypes);
                 foreach($course_sections as $section){
@@ -457,6 +460,10 @@ if (confirm_sesskey()) {
                 $iteration = 1;
                 $activity_types = [];
                 
+
+                $coursecontext = \context_course::instance($target_course->id);
+                $PAGE->set_context($coursecontext);
+
                 $excluded_activitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
                 $excluded_activitytypes = array_map('trim', $excluded_activitytypes);
                 foreach($course_sections as $section){
@@ -578,6 +585,9 @@ if (confirm_sesskey()) {
                 $iteration = 1;
                 $activity_types = [];
                 
+                $coursecontext = \context_course::instance($target_course->id);
+                $PAGE->set_context($coursecontext);
+
                 $excluded_activitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
                 $excluded_activitytypes = array_map('trim', $excluded_activitytypes);
                 foreach($course_sections as $section){

@@ -13,20 +13,20 @@ $tasks = array(
         'classname' => 'local_rollover_wizard\task\execute_rollover',
         'blocking' => 0,
         'minute' => '0',
-        'hour' => '2',
+        'hour' => '1',
         'day' => '*',
         'dayofweek' => '*',
         'month' => '*',
-        'disabled' => 1
+        'disabled' => 0
     ),
     array(
         'classname' => 'local_rollover_wizard\task\calculate_course_size',
         'blocking' => 0,
         'minute' => '0',
-        'hour' => '2',
+        'hour' => '1',
         'day' => '*',
         'dayofweek' => '*',
         'month' => '*',
-        'disabled' => 1
+        'disabled' => 0
     ),
 );

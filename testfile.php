@@ -56,13 +56,29 @@ purge_all_caches();
 // echo "<pre>", var_dump(local_rollover_wizard_is_crontask(15)), "</pre>";
 
 
-$url = (new moodle_url('/local/rollover_wizard/workerfile.php'));
+// $url = (new moodle_url('/local/rollover_wizard/workerfile.php'));
 
-echo "<pre>", var_dump($_SERVER), "</pre>";
+// echo "<pre>", var_dump($_SERVER), "</pre>";
 
-if( \filter_var( \ini_get('allow_url_fopen'), \FILTER_VALIDATE_BOOLEAN ) ) {
-    echo "<br>allow url fopen enabled<br>";
-}
-if( \filter_var( \ini_get('openssl'), \FILTER_VALIDATE_BOOLEAN ) ) {
-    echo "<br>openssl enabled<br>";
-}
+// if( \filter_var( \ini_get('allow_url_fopen'), \FILTER_VALIDATE_BOOLEAN ) ) {
+//     echo "<br>allow url fopen enabled<br>";
+// }
+// if( \filter_var( \ini_get('openssl'), \FILTER_VALIDATE_BOOLEAN ) ) {
+//     echo "<br>openssl enabled<br>";
+// }
+
+
+// $setting = get_config('local_rollover_wizard');
+// $coursesize = $DB->get_record('rollover_wizard_coursesize', ['courseid' => 7]);
+// if($coursesize){
+//     // $max_filesize = ((($setting->cron_size_threshold * 1024) * 1024) * 1024);
+//     // $is_cron = $coursesize->filesize >= $max_filesize;
+
+//     $max_filesize = $setting->cron_size_threshold * 1024 ** 3;
+//     $is_cron = $coursesize->size >= $max_filesize;
+
+//     echo "<pre>", var_dump($coursesize), "</pre>";
+//     echo "<pre>", var_dump("Max Filesize : ".$max_filesize), "</pre>";
+//     echo "<pre>", var_dump("Course Filesize : ".$coursesize->size), "</pre>";
+//     echo "<pre>", var_dump("Is cron : ".$is_cron), "</pre>";
+// }
