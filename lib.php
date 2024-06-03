@@ -625,14 +625,14 @@ function local_rollover_wizard_is_crontask($courseid){
     // return $course && $course->filesize >= $max_filesize;
 
     // New Code
-    $is_cron = true;
-    $coursesize = $DB->get_record('rollover_wizard_coursesize', ['courseid' => $courseid]);
-    if($coursesize){
+    // $is_cron = true;
+    // $coursesize = $DB->get_record('rollover_wizard_coursesize', ['courseid' => $courseid]);
+    // if($coursesize){
 
-        $max_filesize = $setting->cron_size_threshold * 1024 ** 3;
-        $is_cron = $coursesize->size >= $max_filesize;
-    }
-    // $is_cron = false;
+    //     $max_filesize = $setting->cron_size_threshold * 1024 ** 3;
+    //     $is_cron = $coursesize->size >= $max_filesize;
+    // }
+    $is_cron = false;
     return $is_cron;
 }
 function local_rollover_wizard_course_filesize($courseid) {
