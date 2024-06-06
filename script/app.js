@@ -103,7 +103,7 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                         $(root).find('.modal-dialog').addClass('modal-dialog-scrollable');
                         $(root).find('.modal-body').css('overflow-y', 'hidden');
                         main_modal = modal;
-                        $(root).find('.modal-dialog').css('height', '85%');
+                        // $(root).find('.modal-dialog').css('height', '85%');
                         $(root).find('.modal-dialog').css('min-height', '85%');
                         $(root).data('backdrop', 'static');
 

@@ -53,6 +53,10 @@ if ($hassiteconfig) {
     // $element = new admin_setting_configtext('local_rollover_wizard/identifier_course_template', 'Identifier for template courses','', null);
     $settings->add($element);
 
+    $element = new admin_setting_configcheckbox('local_rollover_wizard/enable_cron_schedulling', 'Enable CRON Task schedulling',
+                                                get_string('cron_schedulling_description', 'local_rollover_wizard'), null);
+    $settings->add($element);
+
     $choices = [1 => "1 GB",
                 2 => "2 GB",
                 3 => "3 GB",

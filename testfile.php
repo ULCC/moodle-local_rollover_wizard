@@ -11,6 +11,7 @@ rebuild_course_cache(0, true);
 purge_all_caches();
 
 $courseid = 9;
+echo "<br><br>Method 1 <br>";
 $start_time = microtime(true);
 
 $filesize = 0;
@@ -55,6 +56,64 @@ echo "<pre>", var_dump($coursesize), "</pre>";
 echo "Duration : ". (microtime(true) - $start_time). "<br>";
 
 
+echo "<br><br>Method 2 <br>";
+$start_time = microtime(true);
+
+$contextids = [];
+$filesize = 0;
+$block_query = "SELECT cx1.id
+FROM {block_instances} bi
+JOIN {context} cx1 ON cx1.contextlevel = ".CONTEXT_BLOCK. " AND cx1.instanceid = bi.id
+JOIN {context} cx2 ON cx2.contextlevel = ". CONTEXT_COURSE. " AND cx2.id = bi.parentcontextid
+JOIN {course} c ON c.id = cx2.instanceid
+WHERE c.id = $courseid";
+if($records = $DB->get_records_sql($block_query)){
+    foreach($records as $record){
+        if(!in_array($record->id, $contextids)){
+            $contextids[] = $record->id;
+        }
+    }
+}
+
+$cm_query = "SELECT cx.id
+FROM {course_modules} cm
+JOIN {context} cx ON cx.contextlevel = ".CONTEXT_MODULE." AND cx.instanceid = cm.id
+JOIN {course} c ON c.id = cm.course
+WHERE c.id = $courseid";
+if($records = $DB->get_records_sql($cm_query)){
+    foreach($records as $record){
+        if(!in_array($record->id, $contextids)){
+            $contextids[] = $record->id;
+        }
+    }
+}
+
+$course_query = "SELECT cx.id
+FROM {course} c
+JOIN {context} cx ON cx.contextlevel = ".CONTEXT_COURSE." AND cx.instanceid = c.id
+WHERE c.id = $courseid";
+if($records = $DB->get_records_sql($course_query)){
+    foreach($records as $record){
+        if(!in_array($record->id, $contextids)){
+            $contextids[] = $record->id;
+        }
+    }
+}
+$file_query = "SELECT SUM(f.filesize) AS filesize FROM {files} f WHERE f.contextid IN (".implode(",",$contextids).")";
+if($record = $DB->get_record_sql($file_query)){
+    $filesize = $record->filesize;
+}
+
+
+$coursesize = new \stdClass();
+$coursesize->filesize = $filesize;
+$coursesize->id = $courseid;
+
+echo "<pre>", var_dump($coursesize), "</pre>";
+
+echo "Duration : ". (microtime(true) - $start_time). "<br>";
+
+echo "<br><br>Old Method <br>";
 $start_time = microtime(true);
 
 $sqlunion = "UNION ALL

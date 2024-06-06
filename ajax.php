@@ -885,7 +885,14 @@ if (confirm_sesskey()) {
         }
 
         $status = $record->status;
-        $message = 'The content import has completed successfully';
+        if($status != ROLLOVER_WIZARD_INPROGRESS && ($status == ROLLOVER_WIZARD_PARTLYSUCCESS || $status == ROLLOVER_WIZARD_UNSUCCESS)){
+            $link = get_string('lxi_support_link', 'local_rollover_wizard');
+            $message = 'The content import did not complete due to : <br>'.$record->note.'<br><p>Please contact <a href="'.$link.'" target="_blank">LXI</a> for support</p>';
+        }
+        
+        if($status == ROLLOVER_WIZARD_SUCCESS){
+            $message = 'The content import has completed successfully';
+        }
         display_result(200,['taskid' => $taskid, 'percentage' => $percentage,'rolloverstatus' => $status, 'message' => $message]);
     }
     else if ($action == 'retrievecourses') {
@@ -1068,7 +1075,8 @@ if (confirm_sesskey()) {
         $course = $DB->get_record('course', ['id' => $courseid]);
         $categoryid = 0;
         if($mode == 'previouscourse'){
-            $categoryid = (!empty($courseid)) ? $course->category : 0;
+            // $categoryid = (!empty($courseid)) ? $course->category : 0;
+            $categoryid = 0;
         }
         else{
             $categoryid = $template_category;

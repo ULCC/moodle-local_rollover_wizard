@@ -60,7 +60,8 @@ function local_rollover_wizard_extend_navigation_course(navigation_node $navigat
         $_SESSION['local_rollover_wizard'][$key] = $session_data;
         $_SESSION['local_rollover_wizard']['key'] = $key;
         $PAGE->requires->js( new moodle_url($CFG->wwwroot . '/local/rollover_wizard/script/app.js') );
-        $navigation->add(get_string('importcourse','local_rollover_wizard'), '#', navigation_node::TYPE_SETTING, null, 'rolloverwizard', new pix_icon('i/report', ''));
+        $PAGE->requires->css( new moodle_url($CFG->wwwroot . '/local/rollover_wizard/script/app.css') );
+        $navigation->add(get_string('importcourse','local_rollover_wizard'), '#', navigation_node::TYPE_SETTING, null, 'rolloverwizard', null);
     }
     
 }
@@ -633,6 +634,15 @@ function local_rollover_wizard_is_crontask($courseid){
     //     $is_cron = $coursesize->size >= $max_filesize;
     // }
     $is_cron = false;
+    if (!empty($setting->enable_cron_schedulling) && $setting->enable_cron_schedulling == 1) {
+        $is_cron = true;
+        $coursesize = $DB->get_record('rollover_wizard_coursesize', ['courseid' => $courseid]);
+        if($coursesize){
+
+            $max_filesize = $setting->cron_size_threshold * 1024 ** 3;
+            $is_cron = ((int) $coursesize->size) >= $max_filesize;
+        }
+    }
     return $is_cron;
 }
 function local_rollover_wizard_course_filesize($courseid) {

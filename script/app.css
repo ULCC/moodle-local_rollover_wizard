@@ -1,0 +1,3 @@
+li[data-key="rolloverwizard"] > a::before {
+    content: none !important;
+}

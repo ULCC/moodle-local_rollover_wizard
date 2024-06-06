@@ -21,8 +21,6 @@ class calculate_course_size extends \core\task\scheduled_task {
 
         require_once($CFG->dirroot . '/local/rollover_wizard/lib.php');
 
-        // local_rollover_wizard_executerollover();
-        // table name rollover_wizard_coursesize
         mtrace('Rollover Wizard - Calculate Course Size Start');
         $courses = $DB->get_records_sql('SELECT * FROM {course} WHERE id > 1');
         foreach($courses as $course){
@@ -30,7 +28,7 @@ class calculate_course_size extends \core\task\scheduled_task {
             
             mtrace('Checking Course '.$course->fullname. " (".$courseid.")");
             $coursefilesize = local_rollover_wizard_course_filesize($courseid);
-            if(!$coursefilesize){
+            if(!$coursefilesize || $coursefilesize->filesize < 1){
                 mtrace('Course '.$course->fullname. " (".$courseid.") skipped (cannot detect filesize!)");
                 continue;
             }
