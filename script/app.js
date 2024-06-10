@@ -201,12 +201,22 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
         });
         $(root).find('#btn-select-all').on('click', function(){
             $('input[name="rollover-wizard-cm[]"]:not(:disabled)').prop('checked', true);
+            $('input[name="rollover-wizard-sections[]"]:not(:disabled)').prop('checked', true);
         });
         $(root).find('#btn-deselect-all').on('click', function(){
             $('input[name="rollover-wizard-cm[]"]').prop('checked', false);
+            $('input[name="rollover-wizard-sections[]"]').prop('checked', false);
         });
         $(root).find('#btn-select-filter').on('click', function(){
             modalFilterActivity();
+        });
+        $(root).find('.rollover-check-section').on('click', function(){
+            var section = $(this).data('section');
+            var checked = $(this).prop('checked');
+            // $('input[name="rollover-wizard-cm[]"][data-section='+section+']:not(:disabled)').prop('checked', true);
+            $('input[name="rollover-wizard-cm[]"][data-section='+section+']:not(:disabled)').each(function(i,obj){
+                $(this).prop('checked',checked);
+            });
         });
         var progress_width = 1;
         if(wizard_step > 1){
@@ -345,7 +355,39 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
             if(rollover_process_mode == 'cron'){
                 // alert('Cron Process');
             }
-            modalConfirmProcess(rollover_process_mode);
+            
+            if(wizard_mode == 'blanktemplate'){
+
+                wizard_selected_activity = [];
+                $('input[name="rollover-wizard-cm[]"]').each(function(index,item){
+                    var checked = $(this).prop('checked');
+                    var key = $(this).data('module');
+                    var section = $(this).data('section');
+                    var value = $(this).val();
+                    if(checked){
+                        wizard_selected_activity.push({
+                            key: key,
+                            value: value ,
+                            section: section 
+                        });
+                    }
+                });
+                
+                var data = JSON.stringify(wizard_selected_activity);
+                var promise = ajax('saveselectedactivity', {selectedactivity: data});
+                promise.then(function(result){
+                    if (result.length != 0) {
+                        var result = JSON.parse(result);
+                        if(result.status == 200){
+                            
+                            modalConfirmProcess(rollover_process_mode);
+                        }
+                    }
+                });
+            }
+            else{
+                modalConfirmProcess(rollover_process_mode);
+            }
         }
         if(wizard_step == 5){
             main_modal.destroy();

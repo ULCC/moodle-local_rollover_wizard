@@ -61,7 +61,10 @@ if ($hassiteconfig) {
                 2 => "2 GB",
                 3 => "3 GB",
                 4 => "4 GB",
-                5 => "5 GB"
+                5 => "5 GB",
+                10 => "10 GB",
+                15 => "15 GB",
+                20 => "20 GB",
             ];
     $element = new admin_setting_configselect('local_rollover_wizard/cron_size_threshold', 'Size threshold for scheduled run',
                                 '', 1, $choices);

@@ -56,6 +56,7 @@ function local_rollover_wizard_extend_navigation_course(navigation_node $navigat
         $session_data['source_course'] = null;
         $session_data['selected_activity'] = null;
         $session_data['mode'] = null;
+        $session_data['import_course_setting'] = false;
         $key = time();
         $_SESSION['local_rollover_wizard'][$key] = $session_data;
         $_SESSION['local_rollover_wizard']['key'] = $key;
@@ -269,44 +270,107 @@ function local_rollover_wizard_executerollover()
             }
 
             foreach ($cmids as $cmid) {
-                $nr_of_trying = 3;
-                $cur_trying = 0;
-                do {
-                    $cur_trying += 1;
-                    try {
-                        $cm = get_coursemodule_from_id('', $cmid, 0, false, MUST_EXIST);
-
-                        if (!in_array($cm->modname, $cur_excluded_activitytypes) && $cm->deletioninprogress == 0) {
-
-                            $bc = new backup_controller(backup::TYPE_1ACTIVITY, $cm->id, backup::FORMAT_MOODLE, backup::INTERACTIVE_NO, backup::MODE_IMPORT, $rolloverqueue->userid);
-
-                            $backupid = $bc->get_backupid();
-                            $bc->execute_plan();
-                            $bc->destroy();
-
-                            $rc = new restore_controller($backupid, $rolloverqueue->targetcourseid, backup::INTERACTIVE_NO, backup::MODE_IMPORT, $rolloverqueue->userid, backup::TARGET_CURRENT_ADDING);
-
-                            $rc->execute_precheck();
-                            $rc->execute_plan();
-
-                            $rolledovercmids .= (empty($rolledovercmids) ? $cmid : ",$cmid");
-
-                            
-                            $rolloverqueue->rolledovercmids = $rolledovercmids;
-
-                            $DB->update_record('local_rollover_wizard_log', $rolloverqueue);
+                if($cmid == 'coursesettings'){
+                    try{
+                        $backuptempdir = make_backup_temp_directory('');
+                        $packer = get_file_packer('application/vnd.moodle.backup');
+                        $admin = get_admin();
+                        if (!$admin) {
+                            mtrace("Error: No admin account was found");
+                            $a = new stdclass();
+                            $a->userid = $USER->id;
+                            $a->courseid = $courseid;
+                            $a->capability = 'none';
+                            throw new backup_controller_exception('admin_user_missing', $a);
                         }
-                        break;
-                    } catch (\Throwable $e) {
-                        mtrace("Cmid-$cmid failed: " . $e->getMessage());
-                        $note .= "Cmid-$cmid failed: " . $e->getMessage() . '<br>';
-                        if (trim($e->getMessage()) == 'Table "backup_files_temp" already exists') {
-                            $dbman = $DB->get_manager();
-                            $dbman->drop_table(new \xmldb_table('backup_ids_temp'));
-                            $dbman->drop_table(new \xmldb_table('backup_files_temp'));
+                        $bc = new \backup_controller(\backup::TYPE_1COURSE, $sourcecourseid, \backup::FORMAT_MOODLE, \backup::INTERACTIVE_NO,
+                            \backup::MODE_GENERAL, $admin->id);
+                        foreach ($bc->get_plan()->get_settings() as $setting) {
+                            if ($setting->get_status() != \base_setting::NOT_LOCKED) {
+                                continue;
+                            }
+                            if ($name == 'filename') {
+                                continue;
+                            }
+                            $name = $setting->get_name();
+                            $value = false;
+                            $bc->get_plan()->get_setting($name)->set_value($value);
                         }
+                        $bc->execute_plan();
+
+                        $results = $bc->get_results();
+                        $results['backup_destination']->extract_to_pathname($packer, "$backuptempdir/test_content_rollover");
+
+                        $bc->destroy();
+                        unset($bc);
+
+                        $rc = new \restore_controller('test_content_rollover', $targetcourseid, \backup::INTERACTIVE_NO, \backup::MODE_GENERAL, $USER->id, \backup::TARGET_CURRENT_ADDING);
+                        foreach ($rc->get_plan()->get_settings() as $setting) {
+                            if ($setting->get_status() != \base_setting::NOT_LOCKED) {
+                                continue;
+                            }
+                            $name = $setting->get_name();
+                            $value = false;
+                            if ($name == 'overwrite_conf') {
+                                $value = true;
+                            }
+                            $rc->get_plan()->get_setting($name)->set_value($value);
+                        }
+
+                        if (!$rc->execute_precheck()) {
+                            $a = new stdclass();
+                            $a->userid = $USER->id;
+                            $a->courseid = $courseid;
+                            $a->capability = 'none';
+                            throw new backup_controller_exception('course_settings_precheck_failed', $a);
+                        }
+                        $rc->execute_plan();
+                        $rc->destroy();
+                    }catch(\Throwable $e){
+                        mtrace("Course Settings failed: " . $e->getMessage());
+                        $note .= "Course Settings failed: " . $e->getMessage() . '<br>';
                     }
-                } while ($cur_trying < $nr_of_trying);
+                }
+                else{
+                    $nr_of_trying = 3;
+                    $cur_trying = 0;
+                    do {
+                        $cur_trying += 1;
+                        try {
+                            $cm = get_coursemodule_from_id('', $cmid, 0, false, MUST_EXIST);
+    
+                            if (!in_array($cm->modname, $cur_excluded_activitytypes) && $cm->deletioninprogress == 0) {
+    
+                                $bc = new backup_controller(backup::TYPE_1ACTIVITY, $cm->id, backup::FORMAT_MOODLE, backup::INTERACTIVE_NO, backup::MODE_IMPORT, $rolloverqueue->userid);
+    
+                                $backupid = $bc->get_backupid();
+                                $bc->execute_plan();
+                                $bc->destroy();
+    
+                                $rc = new restore_controller($backupid, $rolloverqueue->targetcourseid, backup::INTERACTIVE_NO, backup::MODE_IMPORT, $rolloverqueue->userid, backup::TARGET_CURRENT_ADDING);
+    
+                                $rc->execute_precheck();
+                                $rc->execute_plan();
+    
+                                $rolledovercmids .= (empty($rolledovercmids) ? $cmid : ",$cmid");
+    
+                                
+                                $rolloverqueue->rolledovercmids = $rolledovercmids;
+    
+                                $DB->update_record('local_rollover_wizard_log', $rolloverqueue);
+                            }
+                            break;
+                        } catch (\Throwable $e) {
+                            mtrace("Cmid-$cmid failed: " . $e->getMessage());
+                            $note .= "Cmid-$cmid failed: " . $e->getMessage() . '<br>';
+                            if (trim($e->getMessage()) == 'Table "backup_files_temp" already exists') {
+                                $dbman = $DB->get_manager();
+                                $dbman->drop_table(new \xmldb_table('backup_ids_temp'));
+                                $dbman->drop_table(new \xmldb_table('backup_files_temp'));
+                            }
+                        }
+                    } while ($cur_trying < $nr_of_trying);
+                }
             }
 
             if (empty($note)) {

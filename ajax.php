@@ -280,9 +280,11 @@ if (confirm_sesskey()) {
                 $html .= $source_course_html;
                 $html .= "</div>";
                 $html .= "<div id='rollover-activity-container'>";
+                $time = time();
                 // Buttons
                 $html .= "<div class='d-flex justify-content-between my-5'>";
                 $html .= "<div class='filter-button-container'><button type='button' class='btn btn-primary' id='btn-select-filter'>Select Activity Types</button></div>";
+                $html .= '<div class="form-check d-flex justify-content-center align-items-center" style="gap:20px; flex-grow:1;"><input class="form-check-input position-static rollover-check-coursesettings" id="rollover-wizard-coursesettings'.$time.'" data-module="coursesettings" data-section="-1" name="rollover-wizard-cm[]" type="checkbox" value="coursesettings" style="margin-top:0;"><label class="form-check-label" for="rollover-wizard-coursesettings'.$time.'">Import Course Settings</label></div>';
                 $html .= "<div class='select-button-container'><button type='button' class='btn btn-primary' id='btn-select-all'>Select All</button> | <button type='button' class='btn btn-secondary' id='btn-deselect-all'>Deselect All</button></div>"; 
                 $html .= "</div>";
                 
@@ -300,10 +302,11 @@ if (confirm_sesskey()) {
                 foreach($course_sections as $section){
                     $sequence = $section->sequence;
                     $html .= '<div class="card">';
-                    $html .= '<div class="card-header " style="cursor:pointer;" data-toggle="collapse" data-target="#collapsecontainer'.$iteration.'">';
+                    $html .= '<div class="card-header ">';
                     $html .= '<div class="d-flex justify-content-between w-80 text-center">';
+                    $html .= '<div class="form-check"><input class="form-check-input position-static rollover-check-section" data-section="'.$section->section.'" name="rollover-wizard-sections[]" type="checkbox" value="'.$section->section.'"></div>';
                     $html .= '<b>'.get_section_name($source_course->id, $section->section)."</b>";
-                    $html .= '<i class="collapse-toggle"></i>';
+                    $html .= '<i class="collapse-toggle" style="cursor:pointer;" data-toggle="collapse" data-target="#collapsecontainer'.$iteration.'"></i>';
                     $html .= '</div>';
                     $html .= '</div>';
                     $html .= '<div class="card-body collapse show" id="collapsecontainer'.$iteration.'">';
@@ -445,6 +448,10 @@ if (confirm_sesskey()) {
                 $html .= $source_course_html;
                 $html .= "</div>";
                 
+                if(!empty($session_data['import_course_setting']) && $session_data['import_course_setting'] == true){
+                    $html .= "<div class='alert alert-primary'>Import Course Setting Enabled</div>";
+                }
+
                 $html .= "<div class='d-flex flex-column w-75 mx-auto' style='gap:10px;max-height: 50vh;overflow-y:scroll;'>";
                 $html .= "<table class='table table-striped'>";
                 $html .= "<thead>";
@@ -569,7 +576,9 @@ if (confirm_sesskey()) {
                 $html .= "<div class='d-flex flex-column justify-content-center'>";
                 $html .= $source_course_html;
                 $html .= "</div>";
-                
+                $time = time();
+                $html .= '<div class="form-check d-flex justify-content-center align-items-center" style="gap:20px; flex-grow:1;"><input class="form-check-input position-static rollover-check-coursesettings" id="rollover-wizard-coursesettings'.$time.'" data-module="coursesettings" data-section="-1" name="rollover-wizard-cm[]" type="checkbox" value="coursesettings" style="margin-top:0;"><label class="form-check-label" for="rollover-wizard-coursesettings'.$time.'">Import Course Settings</label></div>';
+
                 $html .= "<div class='d-flex flex-column w-75 mx-auto' style='gap:10px;max-height: 50vh;overflow-y:scroll;'>";
                 $html .= "<table class='table table-striped'>";
                 $html .= "<thead>";
@@ -782,7 +791,15 @@ if (confirm_sesskey()) {
         $data_key = required_param('data_key', PARAM_INT);
         $session_data = $_SESSION['local_rollover_wizard'][$data_key];
         $result = json_decode($selected_activity);
+        $coursesettings = null;
+        foreach($result as $res){
+            if($res->key == 'coursesettings' || $res->value == 'coursesettings'){
+                $coursesettings = $res;
+                break;
+            }
+        }
         $session_data['selected_activity'] = $result;
+        $session_data['import_course_setting'] = !empty($coursesettings);
         $_SESSION['local_rollover_wizard'][$data_key] = $session_data;
         display_result(200,['data' => $result]);
     }
@@ -800,10 +817,15 @@ if (confirm_sesskey()) {
         
         $cmids = [];
         if($mode == 'blanktemplate'){
+            
+            if(!empty($session_data['import_course_setting']) && $session_data['import_course_setting'] == true){
+                $cmids[] = 'coursesettings';
+            }
             $selected_activity = $DB->get_records('course_modules', ['course' => $source_course->id]);
             foreach($selected_activity as $activity){
                 $cmids[] = $activity->id;
             }
+            
         }
         if($mode == 'previouscourse'){
             $selected_activity = $session_data['selected_activity'];
@@ -886,8 +908,14 @@ if (confirm_sesskey()) {
 
         $status = $record->status;
         if($status != ROLLOVER_WIZARD_INPROGRESS && ($status == ROLLOVER_WIZARD_PARTLYSUCCESS || $status == ROLLOVER_WIZARD_UNSUCCESS)){
-            $link = get_string('lxi_support_link', 'local_rollover_wizard');
-            $message = 'The content import did not complete due to : <br>'.$record->note.'<br><p>Please contact <a href="'.$link.'" target="_blank">LXI</a> for support</p>';
+            // $link = get_string('lxi_support_link', 'local_rollover_wizard');
+            $text = get_string('wizard_support_text', 'local_rollover_wizard');
+            $link = get_string('wizard_support_link', 'local_rollover_wizard');
+            $comp = get_string('wizard_support_company', 'local_rollover_wizard');
+            $link = "<a href='".$link."' target='_blank'>".$comp."</a>";
+            // $message = 'The content import did not complete due to : <br>'.$record->note.'<br><p>Please contact <a href="'.$link.'" target="_blank">LXI</a> for support</p>';
+            $message = str_replace('{NOTE}', $record->note, $text);
+            $message = str_replace('{LINK}', $link, $message);
         }
         
         if($status == ROLLOVER_WIZARD_SUCCESS){

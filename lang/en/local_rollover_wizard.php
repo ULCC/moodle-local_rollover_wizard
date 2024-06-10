@@ -37,6 +37,8 @@ $string['emailtemplate'] = '
 Dear {FULLNAME},
 <br><br>
 A course content rollover has been completed. View the results here: {REPORT-LINK}';
+$string['wizard_support_company'] = 'LXI';
+$string['wizard_support_link'] = '#';
+$string['wizard_support_text'] = 'The content import did not complete due to : <br>{NOTE}<br><p>Please contact {LINK} for support</p>';
 
-$string['lxi_support_link'] = 'https://google.com';
 $string['cron_schedulling_description'] = 'Tick this checkbox to enable cron schedulling to make rollover task above threshold setting below run through scheduled task. If this disabled, all rollover task will instantly executed';
