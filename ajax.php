@@ -284,7 +284,7 @@ if (confirm_sesskey()) {
                 // Buttons
                 $html .= "<div class='d-flex justify-content-between my-5'>";
                 $html .= "<div class='filter-button-container'><button type='button' class='btn btn-primary' id='btn-select-filter'>Select Activity Types</button></div>";
-                $html .= '<div class="form-check d-flex justify-content-center align-items-center" style="gap:20px; flex-grow:1;"><input class="form-check-input position-static rollover-check-coursesettings" id="rollover-wizard-coursesettings'.$time.'" data-module="coursesettings" data-section="-1" name="rollover-wizard-cm[]" type="checkbox" value="coursesettings" style="margin-top:0;"><label class="form-check-label" for="rollover-wizard-coursesettings'.$time.'">Import Course Settings</label></div>';
+                // $html .= '<div class="form-check d-flex justify-content-center align-items-center" style="gap:20px; flex-grow:1;"><input class="form-check-input position-static rollover-check-coursesettings" id="rollover-wizard-coursesettings'.$time.'" data-module="coursesettings" data-section="-1" name="rollover-wizard-cm[]" type="checkbox" value="coursesettings" style="margin-top:0;"><label class="form-check-label" for="rollover-wizard-coursesettings'.$time.'">Import Course Settings</label></div>';
                 $html .= "<div class='select-button-container'><button type='button' class='btn btn-primary' id='btn-select-all'>Select All</button> | <button type='button' class='btn btn-secondary' id='btn-deselect-all'>Deselect All</button></div>"; 
                 $html .= "</div>";
                 
@@ -577,7 +577,7 @@ if (confirm_sesskey()) {
                 $html .= $source_course_html;
                 $html .= "</div>";
                 $time = time();
-                $html .= '<div class="form-check d-flex justify-content-center align-items-center" style="gap:20px; flex-grow:1;"><input class="form-check-input position-static rollover-check-coursesettings" id="rollover-wizard-coursesettings'.$time.'" data-module="coursesettings" data-section="-1" name="rollover-wizard-cm[]" type="checkbox" value="coursesettings" style="margin-top:0;"><label class="form-check-label" for="rollover-wizard-coursesettings'.$time.'">Import Course Settings</label></div>';
+                // $html .= '<div class="form-check d-flex justify-content-center align-items-center" style="gap:20px; flex-grow:1;"><input class="form-check-input position-static rollover-check-coursesettings" id="rollover-wizard-coursesettings'.$time.'" data-module="coursesettings" data-section="-1" name="rollover-wizard-cm[]" type="checkbox" value="coursesettings" style="margin-top:0;"><label class="form-check-label" for="rollover-wizard-coursesettings'.$time.'">Import Course Settings</label></div>';
 
                 $html .= "<div class='d-flex flex-column w-75 mx-auto' style='gap:10px;max-height: 50vh;overflow-y:scroll;'>";
                 $html .= "<table class='table table-striped'>";
