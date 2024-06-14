@@ -23,8 +23,11 @@ if (!$task) {
 }
 
 // Run the specified task (this will output an error if it doesn't exist).
-\core\task\manager::run_from_cli($task);
+// \core\task\manager::run_from_cli($task);
 
+local_rollover_wizard_executerollover(2);
+
+/* Old Code */
 // Shell-escaped path to the PHP binary.
 // $pathphp = false;
 

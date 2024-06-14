@@ -21,6 +21,7 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
     var wizard_max_step = 5;
     var wizard_taskid = null;
     var data_key = null;
+    var hasruntask = false;
     $(document).ready(function(){
         var promise = ajax('retrievesessiondata');
         promise.then(function(result){
@@ -554,40 +555,49 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
         $(root).find('#wizard_next_container').parent().removeClass('justify-content-between');
         $(root).find('#wizard_next_container').parent().addClass('justify-content-end');
         if(rollover_process_mode == 'instantexecute'){
-            var hasruntask = false;
-            var interval = setInterval(function() {
-                $.ajax({
-                    type: 'POST',
-                    url: M.cfg.wwwroot + '/local/rollover_wizard/ajax.php',
-                    data: { action: 'checkrolloverstate', taskid: wizard_taskid, data_key: data_key, sesskey: M.cfg.sesskey },
-                    beforeSend: function () {
-                        if(!hasruntask){
-                            hasruntask = true;
-                            modal.destroy();
-                            startRolloverTask();
-                        }
-                    },
-                    success: function (response) {
-                        if(response.length != 0) {
-                            var result = JSON.parse(response);
-                            if(result.status == 200){
-                                var root = main_modal.getRoot();
-                                var data = result.data;
-                                var percentage = parseInt(data.percentage);
-                                if(data.rolloverstatus != 'Successful' && data.rolloverstatus != 'Unsuccessful' && data.rolloverstatus != 'Partly-Successful'){
-                                    $(root).find('#rollover-progress-bar').css('width', percentage+"%");
-                                }
-                                else{
-                                    clearInterval(interval);
-                                    $(root).find('.rollover-finish-notification').html(data.message);
-                                    $(root).find('#wizard_next_container').show();
-                                    $(root).find('#wizard_next_button').html('Finish');
+            // hasruntask = false;
+            startRolloverTask();
+            hasruntask = true;
+            var interval1 = setInterval(function(){
+                modal.destroy();
+
+                var interval2 = setInterval(function() {
+                    $.ajax({
+                        type: 'POST',
+                        url: M.cfg.wwwroot + '/local/rollover_wizard/ajax.php',
+                        data: { action: 'checkrolloverstate', taskid: wizard_taskid, data_key: data_key, sesskey: M.cfg.sesskey },
+                        beforeSend: function () {
+                            // if(!hasruntask){
+                            //     hasruntask = true;
+                            //     modal.destroy();
+                            //     startRolloverTask();
+                            // }
+                        },
+                        success: function (response) {
+                            if(response.length != 0) {
+                                var result = JSON.parse(response);
+                                if(result.status == 200){
+                                    var root = main_modal.getRoot();
+                                    var data = result.data;
+                                    var percentage = parseInt(data.percentage);
+                                    if(data.rolloverstatus != 'Successful' && data.rolloverstatus != 'Unsuccessful' && data.rolloverstatus != 'Partly-Successful'){
+                                        $(root).find('#rollover-progress-bar').css('width', percentage+"%");
+                                    }
+                                    else{
+                                        clearInterval(interval2);
+                                        $(root).find('.rollover-finish-notification').html(data.message);
+                                        $(root).find('#wizard_next_container').show();
+                                        $(root).find('#wizard_next_button').html('Finish');
+                                    }
                                 }
                             }
                         }
-                    }
-                });
-            }, 10000);
+                    });
+                }, 10000);
+
+                
+                clearInterval(interval1);
+            },5000);
         }
         if(rollover_process_mode == 'cron'){
             modal.destroy();

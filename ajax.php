@@ -865,6 +865,8 @@ if (confirm_sesskey()) {
             $plugin_name = 'local_rollover_wizard';
             $rollingid_config = 'taskid';
             set_config($rollingid_config, $taskid, $plugin_name);
+
+            $_SESSION['rollover_taskid'] = $taskid;
         }
         
         display_result(200,['taskid' => $taskid]);

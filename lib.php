@@ -135,7 +135,7 @@ function local_rollover_wizard_verify_course($sourcecourseid, $targetcourseid, $
     return $warnings;
 }
 
-function local_rollover_wizard_executerollover()
+function local_rollover_wizard_executerollover($mode = 1)
 {
     global $CFG, $USER, $DB;
     require_once $CFG->dirroot . '/course/modlib.php';
@@ -149,13 +149,20 @@ function local_rollover_wizard_executerollover()
     // $teacherroles_to_rollover = (empty(trim($setting->teacherroles_to_rollover)) ? [] : explode(',', $setting->teacherroles_to_rollover));
     // $teacherroles_to_rollover = array_map('trim', $teacherroles_to_rollover);
 
-    $plugin_name = 'local_rollover_wizard';
-    $taskid_config = 'taskid';
-    $taskid = get_config($plugin_name, $taskid_config);
-    set_config($taskid_config, '', $plugin_name);
-
     $rolloverqueues = [];
-
+    $taskid = null;
+    if($mode == 2){
+        $taskid = $_SESSION['rollover_taskid'];
+        unset($_SESSION['rollover_taskid']);
+    }
+    if($mode == 1 || empty($taskid)){
+        $plugin_name = 'local_rollover_wizard';
+        $taskid_config = 'taskid';
+        $taskid = get_config($plugin_name, $taskid_config);
+        set_config($taskid_config, '', $plugin_name);
+        
+    }
+    
     if (!empty($taskid)) {
         $rolloverqueue = $DB->get_record('local_rollover_wizard_log', ['taskid' => $taskid, 'status' => ROLLOVER_WIZARD_NOTSTARTED]);
         $rolloverqueues[] = $rolloverqueue;
@@ -166,7 +173,6 @@ function local_rollover_wizard_executerollover()
             $rolloverqueues = $DB->get_records('local_rollover_wizard_log', ['instantexecute' => 1, 'status' => ROLLOVER_WIZARD_NOTSTARTED]);
         }
     }
-
     foreach ($rolloverqueues as $rolloverqueue) {
 
         $rolloverqueue = $DB->get_record('local_rollover_wizard_log', ['id' => $rolloverqueue->id]);
@@ -278,7 +284,7 @@ function local_rollover_wizard_executerollover()
                         if (!$admin) {
                             mtrace("Error: No admin account was found");
                             $a = new stdclass();
-                            $a->userid = $USER->id;
+                            $a->userid = $rolloverqueue->userid;
                             $a->courseid = $courseid;
                             $a->capability = 'none';
                             throw new backup_controller_exception('admin_user_missing', $a);
@@ -289,10 +295,10 @@ function local_rollover_wizard_executerollover()
                             if ($setting->get_status() != \base_setting::NOT_LOCKED) {
                                 continue;
                             }
+                            $name = $setting->get_name();
                             if ($name == 'filename') {
                                 continue;
                             }
-                            $name = $setting->get_name();
                             $value = false;
                             $bc->get_plan()->get_setting($name)->set_value($value);
                         }
@@ -304,7 +310,7 @@ function local_rollover_wizard_executerollover()
                         $bc->destroy();
                         unset($bc);
 
-                        $rc = new \restore_controller('test_content_rollover', $targetcourseid, \backup::INTERACTIVE_NO, \backup::MODE_GENERAL, $USER->id, \backup::TARGET_CURRENT_ADDING);
+                        $rc = new \restore_controller('test_content_rollover', $targetcourseid, \backup::INTERACTIVE_NO, \backup::MODE_GENERAL, $admin->id, \backup::TARGET_CURRENT_ADDING);
                         foreach ($rc->get_plan()->get_settings() as $setting) {
                             if ($setting->get_status() != \base_setting::NOT_LOCKED) {
                                 continue;
@@ -319,7 +325,7 @@ function local_rollover_wizard_executerollover()
 
                         if (!$rc->execute_precheck()) {
                             $a = new stdclass();
-                            $a->userid = $USER->id;
+                            $a->userid = $rolloverqueue->userid;
                             $a->courseid = $courseid;
                             $a->capability = 'none';
                             throw new backup_controller_exception('course_settings_precheck_failed', $a);
@@ -342,19 +348,19 @@ function local_rollover_wizard_executerollover()
                             if (!in_array($cm->modname, $cur_excluded_activitytypes) && $cm->deletioninprogress == 0) {
     
                                 $bc = new backup_controller(backup::TYPE_1ACTIVITY, $cm->id, backup::FORMAT_MOODLE, backup::INTERACTIVE_NO, backup::MODE_IMPORT, $rolloverqueue->userid);
-    
+                                // $bc = new backup_controller(backup::TYPE_1ACTIVITY, $cm->id, backup::FORMAT_MOODLE, backup::INTERACTIVE_NO, backup::MODE_GENERAL, $rolloverqueue->userid);
+
                                 $backupid = $bc->get_backupid();
                                 $bc->execute_plan();
                                 $bc->destroy();
     
                                 $rc = new restore_controller($backupid, $rolloverqueue->targetcourseid, backup::INTERACTIVE_NO, backup::MODE_IMPORT, $rolloverqueue->userid, backup::TARGET_CURRENT_ADDING);
-    
+
                                 $rc->execute_precheck();
                                 $rc->execute_plan();
     
                                 $rolledovercmids .= (empty($rolledovercmids) ? $cmid : ",$cmid");
     
-                                
                                 $rolloverqueue->rolledovercmids = $rolledovercmids;
     
                                 $DB->update_record('local_rollover_wizard_log', $rolloverqueue);
