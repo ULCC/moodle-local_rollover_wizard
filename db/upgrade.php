@@ -155,6 +155,19 @@ function xmldb_local_rollover_wizard_upgrade($oldversion) {
         // Rollover_wizard savepoint reached.
         upgrade_plugin_savepoint(true, 2024052901, 'local', 'rollover_wizard');
     }
+    if ($oldversion < 2024061401) {
 
+        // Define field selectedsections to be added to local_rollover_wizard_log.
+        $table = new xmldb_table('local_rollover_wizard_log');
+        $field = new xmldb_field('selectedsections', XMLDB_TYPE_TEXT, null, null, null, null, null, 'cmids');
+
+        // Conditionally launch add field selectedsections.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Rollover_wizard savepoint reached.
+        upgrade_plugin_savepoint(true, 2024061401, 'local', 'rollover_wizard');
+    }
     return true;
 }

@@ -304,8 +304,8 @@ if (confirm_sesskey()) {
                     $html .= '<div class="card">';
                     $html .= '<div class="card-header ">';
                     $html .= '<div class="d-flex justify-content-between w-80 text-center">';
-                    $html .= '<div class="form-check"><input class="form-check-input position-static rollover-check-section" data-section="'.$section->section.'" name="rollover-wizard-sections[]" type="checkbox" value="'.$section->section.'"></div>';
-                    $html .= '<b>'.get_section_name($source_course->id, $section->section)."</b>";
+                    $html .= '<div class="form-check"><input class="form-check-input position-static rollover-check-section" data-section="'.$section->section.'" name="rollover-wizard-cm[]" data-module="coursesections" data-section="'.$section->section.'" type="checkbox" value="'.$section->section.'"></div>';
+                    $html .= '<div style="flex-grow:1;cursor:pointer;" data-toggle="collapse" data-target="#collapsecontainer'.$iteration.'"><b>'.get_section_name($source_course->id, $section->section)."</b></div>";
                     $html .= '<i class="collapse-toggle" style="cursor:pointer;" data-toggle="collapse" data-target="#collapsecontainer'.$iteration.'"></i>';
                     $html .= '</div>';
                     $html .= '</div>';
@@ -339,7 +339,7 @@ if (confirm_sesskey()) {
                             $activity_record = $DB->get_record($modshortname, ['id' => $cm->instance]);
                             $activity_name = $activity_record->name;
                             $html .= "<div class='d-flex flex-row justify-content-start align-items-center' style='gap:25px;".$disabled_style."'>";
-                            $html .= '<div class="form-check"><input class="form-check-input position-static rollover-check-'.$modshortname.'" '.$disabled_attr.' data-section="'.$section->section.'" data-module="'.$modshortname.'" name="rollover-wizard-cm[]" type="checkbox" value="'.$cm->id.'"></div>';
+                            $html .= '<div class="form-check"><input class="form-check-input position-static rollover-check-'.$modshortname.' rollover-check-cm" '.$disabled_attr.' data-section="'.$section->section.'" data-module="'.$modshortname.'" name="rollover-wizard-cm[]" type="checkbox" value="'.$cm->id.'"></div>';
                             $html .= $modlogo;
                             $html .= '<div class="d-flex flex-column text-left"><div class="text-uppercase small">'.$modshortname.'</div><div>'.$activity_name.'</div></div>';
                             if($cm->visible == 0){
@@ -432,8 +432,20 @@ if (confirm_sesskey()) {
                 $html .= "<div class='d-flex flex-column justify-content-between text-center'>";
                 $selected_activity = $session_data['selected_activity'];
                 $processed_activity = [];
+                $selectedsections = [];
                 foreach($selected_activity as $activity){
+                    
+                    if($activity->key == 'coursesections'){
+                        if(!in_array($activity->section,$selectedsections)){
+                            $selectedsections[] = $activity->section;
+                        }
+                        continue;
+                    }
                     $processed_activity[$activity->section][] = $activity->value;
+                    
+                    if(!in_array($activity->section,$selectedsections)){
+                        $selectedsections[] = $activity->section;
+                    }
                 }
                 $source_course = $session_data['source_course'];
                 $source_course_html = "";
@@ -474,6 +486,9 @@ if (confirm_sesskey()) {
                 $excluded_activitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
                 $excluded_activitytypes = array_map('trim', $excluded_activitytypes);
                 foreach($course_sections as $section){
+                    if(!in_array($section->section, $selectedsections)){
+                        continue;
+                    }
                     $sequence = $section->sequence;
                     $html .= '<tr>';
                     $html .= '<td colspan="2"><b>'.get_section_name($source_course->id, $section->section)."</b></td>";
@@ -816,6 +831,7 @@ if (confirm_sesskey()) {
         $source_course = $session_data['source_course'];
         
         $cmids = [];
+        $selectedsections = null;
         if($mode == 'blanktemplate'){
             
             if(!empty($session_data['import_course_setting']) && $session_data['import_course_setting'] == true){
@@ -830,8 +846,18 @@ if (confirm_sesskey()) {
         if($mode == 'previouscourse'){
             $selected_activity = $session_data['selected_activity'];
             $cmids = [];
+            $selectedsections = [];
             foreach($selected_activity as $activity){
+                if($activity->key == 'coursesections'){
+                    if(!in_array($activity->section,$selectedsections)){
+                        $selectedsections[] = $activity->section;
+                    }
+                    continue;
+                }
                 $cmids[] = $activity->value;
+                if(!in_array($activity->section,$selectedsections)){
+                    $selectedsections[] = $activity->section;
+                }
             }
         }
 
@@ -855,6 +881,7 @@ if (confirm_sesskey()) {
         $newrollover->userid = $USER->id;
         $newrollover->note = '';
         $newrollover->cmids = json_encode($cmids);
+        $newrollover->selectedsections = !empty($selectedsections) ? json_encode($selectedsections) : null;
         $newrollover->rolledovercmids = null;
         $newrollover->excludedactivitytypes = json_encode($excluded_activitytypes);
         $newrollover->timecreated = time();
@@ -904,7 +931,7 @@ if (confirm_sesskey()) {
         $total = count($cmids);
         $done = count($rolledovercmids);
         $percentage = 1;
-        if($done > 0){
+        if($done > 0 && !empty($cmids)){
             $percentage = ($done / $total) * 100;
         }
 

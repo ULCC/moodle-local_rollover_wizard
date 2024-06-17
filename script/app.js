@@ -219,6 +219,30 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                 $(this).prop('checked',checked);
             });
         });
+        $(root).find('.rollover-check-cm').on('click', function(){
+            var section = $(this).data('section');
+            var checked = $(this).prop('checked');
+            var counter = 0;
+            $('input[name="rollover-wizard-cm[]"][data-section='+section+']:not(:disabled)').each(function(i,obj){
+                if($(this).prop('checked')){
+                    counter++;
+                }
+            });
+            if(counter > 0){
+                $('.rollover-check-section[data-section='+section+']:not(:disabled)').each(function(i,obj){
+                    $(this).prop('checked', true);
+                });
+            }
+            else{
+                $('.rollover-check-section[data-section='+section+']:not(:disabled)').each(function(i,obj){
+                    $(this).prop('checked', false);
+                });
+            }
+            // $('input[name="rollover-wizard-cm[]"][data-section='+section+']:not(:disabled)').prop('checked', true);
+            // $('input[name="rollover-wizard-cm[]"][data-section='+section+']:not(:disabled)').each(function(i,obj){
+            //     $(this).prop('checked',checked);
+            // });
+        });
         var progress_width = 1;
         if(wizard_step > 1){
             progress_width = (wizard_step / wizard_max_step) * 100;

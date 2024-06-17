@@ -31,6 +31,7 @@
  define('ROLLOVER_WIZARD_PARTLYSUCCESS', 'Partly-Successful');
  
  require_once $CFG->dirroot . '/course/lib.php';
+ require_once $CFG->dirroot . '/lib/blocklib.php';
  require_once $CFG->dirroot . '/backup/util/includes/restore_includes.php';
  require_once $CFG->dirroot . '/backup/util/includes/backup_includes.php';
 
@@ -189,6 +190,8 @@ function local_rollover_wizard_executerollover($mode = 1)
 
             $note = '';
             $rolledovercmids = '';
+            $includedsections = [];
+            $checksections = false;
 
             try {
                 $rolloverqueue->status = ROLLOVER_WIZARD_INPROGRESS;
@@ -201,16 +204,24 @@ function local_rollover_wizard_executerollover($mode = 1)
                 // $sourcesection_numbers = array_keys(get_fast_modinfo($rollover->sourcecourseid)->get_section_info_all());
                 // course_create_sections_if_missing($rollover->targetcourseid, $sourcesection_numbers);
                 // New Code using modified core moodle function :
-                local_rollover_wizard_course_create_sections_if_missing($rolloverqueue->targetcourseid, $rolloverqueue->sourcecourseid);
+                if($rolloverqueue->rollovermode == 'previouscourse' && !empty($rolloverqueue->selectedsections)){
+                    $checksections = true;
+                    $includedsections = json_decode($rolloverqueue->selectedsections);
+                }
+                local_rollover_wizard_course_create_sections_if_missing($rolloverqueue->targetcourseid, $rolloverqueue->sourcecourseid, $checksections, $includedsections);
 
-                $sourcesections = $DB->get_records_sql("SELECT id, section, name, summary, summaryformat, visible FROM {course_sections} WHERE course = :courseid ORDER BY section ASC",
+                $sourcesections = $DB->get_records_sql("SELECT id, section, course, name, summary, summaryformat, visible FROM {course_sections} WHERE course = :courseid ORDER BY section ASC",
                     ['courseid' => $rolloverqueue->sourcecourseid]);
 
                 // Update the name and summary of target sections
                 foreach ($sourcesections as $sourcesection) {
                     $targetsection = $DB->get_record('course_sections', ['course' => $rolloverqueue->targetcourseid, 'section' => $sourcesection->section]);
+                    if(!$targetsection){
+                        continue;
+                    }
                     $targetsection->name = $sourcesection->name;
-                    $targetsection->summary .= local_rollover_wizard_rewrite_summary($rolloverqueue->sourcecourseid, $sourcesection->summary);
+                    $targetsection->summary .= local_rollover_wizard_rewrite_summary($sourcesection, $targetsection);
+                    // $targetsection->summary .= $sourcesection->summary;
                     $targetsection->summaryformat = $sourcesection->summaryformat;
                     $targetsection->visible = $sourcesection->visible;
                     $targetsection->timemodified = time();
@@ -379,6 +390,38 @@ function local_rollover_wizard_executerollover($mode = 1)
                 }
             }
 
+            rebuild_course_cache($rolloverqueue->targetcourseid, true);
+            // Delete excluded sections
+            if($checksections){
+                try {
+                    $targetsections = $DB->get_records_sql("SELECT id, section, name, summary, summaryformat, visible FROM {course_sections} WHERE course = :courseid AND section > 0 ORDER BY section ASC",
+                        ['courseid' => $rolloverqueue->targetcourseid]);
+
+                    // Update the name and summary of target sections
+                    foreach ($targetsections as $targetsection) {
+                        if(!in_array($targetsection->section, $includedsections)){
+                            // $DB->delete_records('course_sections',array('id' => $targetsection->id, 'course' => $rolloverqueue->targetcourseid));
+                            
+                            $modinfo = get_fast_modinfo($rolloverqueue->targetcourseid);
+
+                            $course = $DB->get_record('course', ['id' => $rolloverqueue->targetcourseid]);
+
+                            $section = $modinfo->get_section_info_by_id($targetsection->id, MUST_EXIST);
+                            // if (!empty($modinfo->sections[$section->section])) {
+                            //     foreach ($modinfo->sections[$section->section] as $modnumber) {
+                            //         $cm = $modinfo->cms[$modnumber];
+                            //     }
+                            // }
+                            course_delete_section($course, $section, true, false);
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    mtrace("Sections failed, sourcecourse $rolloverqueue->sourcecourseid, targetcourse $rolloverqueue->targetcourseid: " . $e->getMessage());
+                    $note .= "Sections failed, sourcecourse $rolloverqueue->sourcecourseid, targetcourse $rolloverqueue->targetcourseid: " . $e->getMessage() . '<br>';
+                }
+            }
+
+            rebuild_course_cache($rolloverqueue->targetcourseid, true);
             if (empty($note)) {
                 $rolloverqueue->status = ROLLOVER_WIZARD_SUCCESS;
             } else {
@@ -484,6 +527,7 @@ function local_rollover_wizard_executerollover($mode = 1)
                             ON context.id = blocks.parentcontextid
                         WHERE course.id = :courseid AND blocks.blockname = :blockname";
                 $targetcontextid = $DB->get_field_sql($sql, ['courseid' => $rolloverqueue->targetcourseid, 'blockname' => $block]);
+                $sourcecontextid = $DB->get_field_sql($sql, ['courseid' => $rolloverqueue->sourcecourseid, 'blockname' => $block]);
                 $sourcehtmlblocks = local_rollover_wizard_get_htmlblocks_by_course($rolloverqueue->sourcecourseid);
                 $targethtmlblocks = local_rollover_wizard_get_htmlblocks_by_course($rolloverqueue->targetcourseid);
                 $htmlblocks_to_rollover = array_diff(array_keys($sourcehtmlblocks), array_keys($targethtmlblocks));
@@ -498,6 +542,8 @@ function local_rollover_wizard_executerollover($mode = 1)
                     $new_targethtmlblock->defaultweight = $sourcehtmlblocks[$htmlblock]->defaultweight;
                     $new_targethtmlblock->configdata = $sourcehtmlblocks[$htmlblock]->configdata;
                     $DB->update_record('block_instances', $new_targethtmlblock);
+                    $content = block_instance_by_id($sourcehtmlblocks[$htmlblock]->id)->config->text;
+                    local_rollover_wizard_htmlblokcs_imagefix($sourcehtmlblocks[$htmlblock]->id, $new_targethtmlblock->id, $content);
 
                     if($record = $DB->get_record('block_positions',['blockinstanceid' => $new_targethtmlblock->id])){
                         $sql = "UPDATE {block_positions} SET weight = :weight WHERE blockinstanceid = :blockinstanceid";
@@ -545,7 +591,7 @@ function local_rollover_wizard_executerollover($mode = 1)
  * @param int|array $sections list of relative section numbers to create
  * @return bool if there were any sections created
  */
-function local_rollover_wizard_course_create_sections_if_missing($targetcourseid, $sourcecourseid) {
+function local_rollover_wizard_course_create_sections_if_missing($targetcourseid, $sourcecourseid, $checksections = false ,$included = []) {
     
     $sections = array_keys(get_fast_modinfo($sourcecourseid)->get_section_info_all());
     if (!is_array($sections)) {
@@ -555,6 +601,9 @@ function local_rollover_wizard_course_create_sections_if_missing($targetcourseid
     $existing = array_keys(get_fast_modinfo($targetcourseid)->get_section_info_all());
     if ($newsections = array_diff($sections, $existing)) {
         foreach ($newsections as $sectionnum) {
+            // if($checksections && !in_array($sectionnum, $included)){
+            //     continue;
+            // }
             $original_section = $original_sections[$sectionnum];
             local_rollover_wizard_course_create_section($targetcourseid, $sectionnum, true, $original_section->visible);
         }
@@ -563,32 +612,56 @@ function local_rollover_wizard_course_create_sections_if_missing($targetcourseid
     return false;
 }
 
-function local_rollover_wizard_rewrite_summary($courseid, $summary)
+function local_rollover_wizard_rewrite_summary($sourcesection, $targetsection)
 {
     global $DB;
+    $summary = $sourcesection->summary;
 
-    $context = context_course::instance($courseid);
-
-    if (!empty($summary)) {
-        $doc = new DOMDocument;
-        $doc->preserveWhiteSpace = false;
-        @$doc->loadHTML('<?xml encoding="utf-8" ?><div>' . $summary . '</div>');
-        $xpath = new DOMXpath($doc);
-        $imgsrcs = $xpath->query('//img/@src');
-        foreach ($imgsrcs as $src) {
+    $sourcecontext = \context_course::instance($sourcesection->course);
+    $targetcontext = \context_course::instance($targetsection->course);
+    $doc = new DOMDocument;
+    $doc->preserveWhiteSpace = false;
+    @$doc->loadHTML('<?xml encoding="utf-8" ?><div>' . $summary . '</div>');
+    $xpath = new DOMXpath($doc);
+    $rawsrcs = ['//img/@src', '//a/@href'];
+    foreach($rawsrcs as $rawsrc){
+        $srcs = $xpath->query($rawsrc);
+        foreach ($srcs as $src) {
             $nameonly = str_replace('@@PLUGINFILE@@/', '', $src->nodeValue);
             $nameonly = explode('?', $nameonly)[0];
-            $nameonly = str_replace('%20', ' ', $nameonly);
-
+            // $nameonly = str_replace('%20', ' ', $nameonly);
+            $nameonly = urldecode($nameonly);
+    
             $sql = "SELECT itemid
                     FROM {files}
                     WHERE component='course'
                         AND filearea='section'
                         AND " . $DB->sql_compare_text('filename') . "=" . $DB->sql_compare_text(':filename') . "
                         AND contextid=:contextid LIMIT 1";
-            $fileitemid = $DB->get_field_sql($sql, ['contextid' => $context->id, 'filename' => $nameonly]);
-            if (!empty($fileitemid)) {
-                $imgpath = file_rewrite_pluginfile_urls($src->nodeValue, 'pluginfile.php', $context->id, 'course', 'section', $fileitemid);
+            $fileitemid = $DB->get_field_sql($sql, ['contextid' => $targetcontext->id, 'filename' => $nameonly]);
+            if (empty($fileitemid)) {
+                
+                $fs = get_file_storage();
+                
+                // Get Source file
+                $file = $fs->get_file($sourcecontext->id, 'course', 'section', $sourcesection->id, '/', $nameonly);
+                $newfilerecord = [
+                    'contextid'    => $targetcontext->id,
+                    'component'    => $file->get_component(),
+                    'filearea'     => $file->get_filearea(),
+                    'itemid'       => $targetsection->id,
+                    'filepath'     => $file->get_filepath(),
+                    'filename'     => $file->get_filename(),
+                    'timecreated'  => time(),
+                    'timemodified' => time(),
+                ];
+                $fs->create_file_from_storedfile($newfilerecord, $file);
+    
+                $fileitemid = $DB->get_field_sql($sql, ['contextid' => $targetcontext->id, 'filename' => $nameonly]);
+            }
+    
+            if(!empty($fileitemid)){
+                $imgpath = file_rewrite_pluginfile_urls($src->nodeValue, 'pluginfile.php', $targetcontext->id, 'course', 'section', $fileitemid);
                 $summary = str_replace($src->nodeValue, $imgpath, $summary);
             }
         }
@@ -596,7 +669,53 @@ function local_rollover_wizard_rewrite_summary($courseid, $summary)
 
     return $summary;
 }
-
+function local_rollover_wizard_htmlblokcs_imagefix($sourceblockid, $targetblockid, $content){
+    global $DB;
+    $sourcecontext = \context_block::instance($sourceblockid);
+    $targetcontext = \context_block::instance($targetblockid);
+    $doc = new DOMDocument;
+    $doc->preserveWhiteSpace = false;
+    @$doc->loadHTML('<?xml encoding="utf-8" ?><div>' . $content . '</div>');
+    $xpath = new DOMXpath($doc);
+    $rawsrcs = ['//img/@src', '//a/@href'];
+    foreach($rawsrcs as $rawsrc){
+        $srcs = $xpath->query($rawsrc);
+        foreach ($srcs as $src) {
+            $nameonly = str_replace('@@PLUGINFILE@@/', '', $src->nodeValue);
+            $nameonly = explode('?', $nameonly)[0];
+            // $nameonly = str_replace('%20', ' ', $nameonly);
+            $nameonly = urldecode($nameonly);
+    
+            $sql = "SELECT itemid
+                    FROM {files}
+                    WHERE component='course'
+                        AND filearea='section'
+                        AND " . $DB->sql_compare_text('filename') . "=" . $DB->sql_compare_text(':filename') . "
+                        AND contextid=:contextid LIMIT 1";
+            $fileitemid = $DB->get_field_sql($sql, ['contextid' => $targetcontext->id, 'filename' => $nameonly]);
+            if (empty($fileitemid)) {
+                
+                $fs = get_file_storage();
+                
+                // Get Source file
+                $file = $fs->get_file($sourcecontext->id, 'block_html', 'content', 0, '/', $nameonly);
+                $newfilerecord = [
+                    'contextid'    => $targetcontext->id,
+                    'component'    => $file->get_component(),
+                    'filearea'     => $file->get_filearea(),
+                    'itemid'       => 0,
+                    'filepath'     => $file->get_filepath(),
+                    'filename'     => $file->get_filename(),
+                    'timecreated'  => time(),
+                    'timemodified' => time(),
+                ];
+                $fs->create_file_from_storedfile($newfilerecord, $file);
+    
+                $fileitemid = $DB->get_field_sql($sql, ['contextid' => $targetcontext->id, 'filename' => $nameonly]);
+            }
+        }
+    }
+}
 function local_rollover_wizard_send_email($rolloverqueue)
 {
     global $CFG, $DB;
@@ -705,7 +824,7 @@ function local_rollover_wizard_is_crontask($courseid){
     // }
     $is_cron = false;
     if (!empty($setting->enable_cron_schedulling) && $setting->enable_cron_schedulling == 1) {
-        $is_cron = true;
+        $is_cron = false;
         $coursesize = $DB->get_record('rollover_wizard_coursesize', ['courseid' => $courseid]);
         if($coursesize){
 
