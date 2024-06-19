@@ -44,12 +44,14 @@ function local_rollover_wizard_extend_navigation_course(navigation_node $navigat
         // $_SESSION['local_rollover_wizard']['source_course'] = null;
         // $_SESSION['local_rollover_wizard']['selected_activity'] = null;
         // $_SESSION['local_rollover_wizard']['mode'] = null;
-        foreach($_SESSION['local_rollover_wizard'] as $key => $object){
-            if(is_array($object)){
-                $target_course = $object['target_course'];
-                if($target_course->id == $course->id){
-                    unset($_SESSION['local_rollover_wizard'][$key]);
-                    break;
+        if(isset($_SESSION['local_rollover_wizard'])){
+            foreach($_SESSION['local_rollover_wizard'] as $key => $object){
+                if(is_array($object)){
+                    $target_course = $object['target_course'];
+                    if($target_course->id == $course->id){
+                        unset($_SESSION['local_rollover_wizard'][$key]);
+                        break;
+                    }
                 }
             }
         }
@@ -191,6 +193,7 @@ function local_rollover_wizard_executerollover($mode = 1)
             $note = '';
             $rolledovercmids = '';
             $includedsections = [];
+            $originalsections = [];
             $checksections = false;
 
             try {
@@ -208,6 +211,12 @@ function local_rollover_wizard_executerollover($mode = 1)
                     $checksections = true;
                     $includedsections = json_decode($rolloverqueue->selectedsections);
                 }
+                
+                $targetsections = $DB->get_records_sql("SELECT id, section, name, summary, summaryformat, visible FROM {course_sections} WHERE course = :courseid AND section > 0 ORDER BY section ASC",
+                ['courseid' => $rolloverqueue->targetcourseid]);
+                foreach($targetsections as $targetsection){
+                    $originalsections[] = $targetsection->id;
+                }
                 local_rollover_wizard_course_create_sections_if_missing($rolloverqueue->targetcourseid, $rolloverqueue->sourcecourseid, $checksections, $includedsections);
 
                 $sourcesections = $DB->get_records_sql("SELECT id, section, course, name, summary, summaryformat, visible FROM {course_sections} WHERE course = :courseid ORDER BY section ASC",
@@ -220,7 +229,7 @@ function local_rollover_wizard_executerollover($mode = 1)
                         continue;
                     }
                     $targetsection->name = $sourcesection->name;
-                    $targetsection->summary .= local_rollover_wizard_rewrite_summary($sourcesection, $targetsection);
+                    $targetsection->summary = local_rollover_wizard_rewrite_summary($sourcesection, $targetsection);
                     // $targetsection->summary .= $sourcesection->summary;
                     $targetsection->summaryformat = $sourcesection->summaryformat;
                     $targetsection->visible = $sourcesection->visible;
@@ -253,7 +262,15 @@ function local_rollover_wizard_executerollover($mode = 1)
                                     $filerecord->filearea = 'sectionimage';
                                     $filerecord->itemid = $targetsectionid;
                                     $filerecord->filename = $format_grid_image->image;
-                                    $newfile = $fs->create_file_from_storedfile($filerecord, $file);
+                                    // $newfile = $fs->create_file_from_storedfile($filerecord, $file);
+                                    $newfile = null;
+                                    $existingfile = $fs->get_file($targetcoursecontext->id, 'format_grid', 'sectionimage', $targetsectionid, $file->get_filepath(), $format_grid_image->image);
+                                    if($existingfile){
+                                        $newfile = $existingfile;
+                                    }
+                                    else{
+                                        $newfile = $fs->create_file_from_storedfile($filerecord, $file);
+                                    }
                                     if ($newfile) {
                                         // $DB->set_field('format_grid_image', 'contenthash', $newfile->get_contenthash(), array('sectionid' => $filesectionid));
                                         $grid_image = $DB->get_record('format_grid_image', array('sectionid' => $targetsectionid));
@@ -399,7 +416,7 @@ function local_rollover_wizard_executerollover($mode = 1)
 
                     // Update the name and summary of target sections
                     foreach ($targetsections as $targetsection) {
-                        if(!in_array($targetsection->section, $includedsections)){
+                        if(!in_array($targetsection->section, $includedsections) && !in_array($targetsection->id, $originalsections)){
                             // $DB->delete_records('course_sections',array('id' => $targetsection->id, 'course' => $rolloverqueue->targetcourseid));
                             
                             $modinfo = get_fast_modinfo($rolloverqueue->targetcourseid);

@@ -580,11 +580,10 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
         $(root).find('#wizard_next_container').parent().addClass('justify-content-end');
         if(rollover_process_mode == 'instantexecute'){
             // hasruntask = false;
-            startRolloverTask();
-            hasruntask = true;
             var interval1 = setInterval(function(){
                 modal.destroy();
-
+                startRolloverTask();
+                hasruntask = true;
                 var interval2 = setInterval(function() {
                     $.ajax({
                         type: 'POST',

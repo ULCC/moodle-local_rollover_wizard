@@ -1142,20 +1142,21 @@ if (confirm_sesskey()) {
         if (!empty($courseid)) {
             $superparent = false;
             $supercategoryid = 0;
-            do {
-                $current_categoryid = $categoryid;
-                $category = $DB->get_record('course_categories', ['id' => $current_categoryid]);
-                if ($category->depth == 1 || $category->parent == 0) {
-                    $superparent = true;
-                    $supercategoryid = $category->id;
-                } else {
-                    $categoryid = $category->parent;
-                }
-                if (!in_array($category->id, $categories)) {
-                    $categories[] = $category->id;
-                }
-            } while (!$superparent);
-
+            if($categoryid > 0){
+                do {
+                    $current_categoryid = $categoryid;
+                    $category = $DB->get_record('course_categories', ['id' => $current_categoryid]);
+                    if ($category->depth == 1 || $category->parent == 0) {
+                        $superparent = true;
+                        $supercategoryid = $category->id;
+                    } else {
+                        $categoryid = $category->parent;
+                    }
+                    if (!in_array($category->id, $categories)) {
+                        $categories[] = $category->id;
+                    }
+                } while (!$superparent);
+            }
             $curcategory = core_course_category::get($supercategoryid);
             $curcategories = $curcategory->get_all_children_ids();
             $categories = array_merge($categories, $curcategories);
