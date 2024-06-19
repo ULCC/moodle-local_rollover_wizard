@@ -228,6 +228,9 @@ function local_rollover_wizard_executerollover($mode = 1)
                     if(!$targetsection){
                         continue;
                     }
+                    if(!in_array($sourcesection->section, $includedsections)){
+                        continue;
+                    }
                     $targetsection->name = $sourcesection->name;
                     $targetsection->summary = local_rollover_wizard_rewrite_summary($sourcesection, $targetsection);
                     // $targetsection->summary .= $sourcesection->summary;
@@ -407,7 +410,7 @@ function local_rollover_wizard_executerollover($mode = 1)
                 }
             }
 
-            rebuild_course_cache($rolloverqueue->targetcourseid, true);
+            // rebuild_course_cache($rolloverqueue->targetcourseid, true);
             // Delete excluded sections
             if($checksections){
                 try {
@@ -438,7 +441,7 @@ function local_rollover_wizard_executerollover($mode = 1)
                 }
             }
 
-            rebuild_course_cache($rolloverqueue->targetcourseid, true);
+            // rebuild_course_cache($rolloverqueue->targetcourseid, true);
             if (empty($note)) {
                 $rolloverqueue->status = ROLLOVER_WIZARD_SUCCESS;
             } else {
@@ -587,6 +590,7 @@ function local_rollover_wizard_executerollover($mode = 1)
         mtrace('TaskID ' . $rolloverqueue->taskid . ' finished.');
 
 
+        $setting = get_config('local_rollover_wizard');
         if (!empty($setting->enable_email_notification) && $setting->enable_email_notification == 1) {
             try {
                 mtrace('Rollover process - Start sending email out.');
@@ -662,6 +666,9 @@ function local_rollover_wizard_rewrite_summary($sourcesection, $targetsection)
                 
                 // Get Source file
                 $file = $fs->get_file($sourcecontext->id, 'course', 'section', $sourcesection->id, '/', $nameonly);
+                if(!$file){
+                    continue;
+                }
                 $newfilerecord = [
                     'contextid'    => $targetcontext->id,
                     'component'    => $file->get_component(),
@@ -716,6 +723,9 @@ function local_rollover_wizard_htmlblokcs_imagefix($sourceblockid, $targetblocki
                 
                 // Get Source file
                 $file = $fs->get_file($sourcecontext->id, 'block_html', 'content', 0, '/', $nameonly);
+                if(!$file){
+                    continue;
+                }
                 $newfilerecord = [
                     'contextid'    => $targetcontext->id,
                     'component'    => $file->get_component(),
