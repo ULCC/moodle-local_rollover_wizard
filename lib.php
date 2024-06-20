@@ -363,6 +363,22 @@ function local_rollover_wizard_executerollover($mode = 1)
                         }
                         $rc->execute_plan();
                         $rc->destroy();
+
+                        // If course format is grid, force set number of section
+                        
+                        $sourcecourse = $DB->get_record('course', ['id' => $sourcecourseid]);
+                        $sourcecourseformat = course_get_format($sourcecourse);
+                        $targetcourse = $DB->get_record('course', ['id' => $targetcourseid]);
+                        $targetcourseformat = course_get_format($targetcourse);
+                        
+                        if ($sourcecourseformat->get_format() == 'grid' && $targetcourseformat->get_format() == 'grid') {
+                            $sourcesetting = $sourcecourseformat->get_settings();
+                            $targetsetting = $targetcourseformat->get_settings();
+
+                            
+                            $targetsetting['gnumsections'] = $sourcesetting['gnumsections'];
+                            $targetcourseformat->update_course_format_options($targetsetting);
+                        }
                     }catch(\Throwable $e){
                         mtrace("Course Settings failed: " . $e->getMessage());
                         $note .= "Course Settings failed: " . $e->getMessage() . '<br>';

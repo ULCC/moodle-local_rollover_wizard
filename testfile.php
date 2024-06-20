@@ -10,144 +10,159 @@ global $PAGE, $USER, $DB, $CFG, $OUTPUT;
 rebuild_course_cache(0, true);
 purge_all_caches();
 
-$courseid = 9;
-echo "<br><br>Method 1 <br>";
-$start_time = microtime(true);
+// $courseid = 9;
+// echo "<br><br>Method 1 <br>";
+// $start_time = microtime(true);
 
-$filesize = 0;
-$block_query = "SELECT c.id, SUM(f.filesize) AS filesize
-FROM {block_instances} bi
-JOIN {context} cx1 ON cx1.contextlevel = ".CONTEXT_BLOCK. " AND cx1.instanceid = bi.id
-JOIN {context} cx2 ON cx2.contextlevel = ". CONTEXT_COURSE. " AND cx2.id = bi.parentcontextid
-JOIN {course} c ON c.id = cx2.instanceid
-JOIN {files} f ON f.contextid = cx1.id
-WHERE c.id = $courseid
-GROUP BY c.id";
-if($record = $DB->get_record_sql($block_query)){
-    $filesize += $record->filesize;
-}
+// $filesize = 0;
+// $block_query = "SELECT c.id, SUM(f.filesize) AS filesize
+// FROM {block_instances} bi
+// JOIN {context} cx1 ON cx1.contextlevel = ".CONTEXT_BLOCK. " AND cx1.instanceid = bi.id
+// JOIN {context} cx2 ON cx2.contextlevel = ". CONTEXT_COURSE. " AND cx2.id = bi.parentcontextid
+// JOIN {course} c ON c.id = cx2.instanceid
+// JOIN {files} f ON f.contextid = cx1.id
+// WHERE c.id = $courseid
+// GROUP BY c.id";
+// if($record = $DB->get_record_sql($block_query)){
+//     $filesize += $record->filesize;
+// }
 
-$cm_query = "SELECT c.id, SUM(f.filesize) AS filesize
-FROM {course_modules} cm
-JOIN {context} cx ON cx.contextlevel = ".CONTEXT_MODULE." AND cx.instanceid = cm.id
-JOIN {course} c ON c.id = cm.course
-JOIN {files} f ON f.contextid = cx.id
-WHERE c.id = $courseid
-GROUP BY c.id";
-if($record = $DB->get_record_sql($cm_query)){
-    $filesize += $record->filesize;
-}
-$course_query = "SELECT c.id, SUM(f.filesize) AS filesize
-FROM {course} c
-JOIN {context} cx ON cx.contextlevel = ".CONTEXT_COURSE." AND cx.instanceid = c.id
-JOIN {files} f ON f.contextid = cx.id
-WHERE c.id = $courseid
-GROUP BY c.id";
-if($record = $DB->get_record_sql($course_query)){
-    $filesize += $record->filesize;
-}
+// $cm_query = "SELECT c.id, SUM(f.filesize) AS filesize
+// FROM {course_modules} cm
+// JOIN {context} cx ON cx.contextlevel = ".CONTEXT_MODULE." AND cx.instanceid = cm.id
+// JOIN {course} c ON c.id = cm.course
+// JOIN {files} f ON f.contextid = cx.id
+// WHERE c.id = $courseid
+// GROUP BY c.id";
+// if($record = $DB->get_record_sql($cm_query)){
+//     $filesize += $record->filesize;
+// }
+// $course_query = "SELECT c.id, SUM(f.filesize) AS filesize
+// FROM {course} c
+// JOIN {context} cx ON cx.contextlevel = ".CONTEXT_COURSE." AND cx.instanceid = c.id
+// JOIN {files} f ON f.contextid = cx.id
+// WHERE c.id = $courseid
+// GROUP BY c.id";
+// if($record = $DB->get_record_sql($course_query)){
+//     $filesize += $record->filesize;
+// }
 
-$coursesize = new \stdClass();
-$coursesize->filesize = $filesize;
-$coursesize->id = $courseid;
+// $coursesize = new \stdClass();
+// $coursesize->filesize = $filesize;
+// $coursesize->id = $courseid;
 
-echo "<pre>", var_dump($coursesize), "</pre>";
+// echo "<pre>", var_dump($coursesize), "</pre>";
 
-echo "Duration : ". (microtime(true) - $start_time). "<br>";
-
-
-echo "<br><br>Method 2 <br>";
-$start_time = microtime(true);
-
-$contextids = [];
-$filesize = 0;
-$block_query = "SELECT cx1.id
-FROM {block_instances} bi
-JOIN {context} cx1 ON cx1.contextlevel = ".CONTEXT_BLOCK. " AND cx1.instanceid = bi.id
-JOIN {context} cx2 ON cx2.contextlevel = ". CONTEXT_COURSE. " AND cx2.id = bi.parentcontextid
-JOIN {course} c ON c.id = cx2.instanceid
-WHERE c.id = $courseid";
-if($records = $DB->get_records_sql($block_query)){
-    foreach($records as $record){
-        if(!in_array($record->id, $contextids)){
-            $contextids[] = $record->id;
-        }
-    }
-}
-
-$cm_query = "SELECT cx.id
-FROM {course_modules} cm
-JOIN {context} cx ON cx.contextlevel = ".CONTEXT_MODULE." AND cx.instanceid = cm.id
-JOIN {course} c ON c.id = cm.course
-WHERE c.id = $courseid";
-if($records = $DB->get_records_sql($cm_query)){
-    foreach($records as $record){
-        if(!in_array($record->id, $contextids)){
-            $contextids[] = $record->id;
-        }
-    }
-}
-
-$course_query = "SELECT cx.id
-FROM {course} c
-JOIN {context} cx ON cx.contextlevel = ".CONTEXT_COURSE." AND cx.instanceid = c.id
-WHERE c.id = $courseid";
-if($records = $DB->get_records_sql($course_query)){
-    foreach($records as $record){
-        if(!in_array($record->id, $contextids)){
-            $contextids[] = $record->id;
-        }
-    }
-}
-$file_query = "SELECT SUM(f.filesize) AS filesize FROM {files} f WHERE f.contextid IN (".implode(",",$contextids).")";
-if($record = $DB->get_record_sql($file_query)){
-    $filesize = $record->filesize;
-}
+// echo "Duration : ". (microtime(true) - $start_time). "<br>";
 
 
-$coursesize = new \stdClass();
-$coursesize->filesize = $filesize;
-$coursesize->id = $courseid;
+// echo "<br><br>Method 2 <br>";
+// $start_time = microtime(true);
 
-echo "<pre>", var_dump($coursesize), "</pre>";
+// $contextids = [];
+// $filesize = 0;
+// $block_query = "SELECT cx1.id
+// FROM {block_instances} bi
+// JOIN {context} cx1 ON cx1.contextlevel = ".CONTEXT_BLOCK. " AND cx1.instanceid = bi.id
+// JOIN {context} cx2 ON cx2.contextlevel = ". CONTEXT_COURSE. " AND cx2.id = bi.parentcontextid
+// JOIN {course} c ON c.id = cx2.instanceid
+// WHERE c.id = $courseid";
+// if($records = $DB->get_records_sql($block_query)){
+//     foreach($records as $record){
+//         if(!in_array($record->id, $contextids)){
+//             $contextids[] = $record->id;
+//         }
+//     }
+// }
 
-echo "Duration : ". (microtime(true) - $start_time). "<br>";
+// $cm_query = "SELECT cx.id
+// FROM {course_modules} cm
+// JOIN {context} cx ON cx.contextlevel = ".CONTEXT_MODULE." AND cx.instanceid = cm.id
+// JOIN {course} c ON c.id = cm.course
+// WHERE c.id = $courseid";
+// if($records = $DB->get_records_sql($cm_query)){
+//     foreach($records as $record){
+//         if(!in_array($record->id, $contextids)){
+//             $contextids[] = $record->id;
+//         }
+//     }
+// }
 
-echo "<br><br>Old Method <br>";
-$start_time = microtime(true);
-
-$sqlunion = "UNION ALL
-                SELECT c.id, f.filesize
-                FROM {block_instances} bi
-                JOIN {context} cx1 ON cx1.contextlevel = ".CONTEXT_BLOCK. " AND cx1.instanceid = bi.id
-                JOIN {context} cx2 ON cx2.contextlevel = ". CONTEXT_COURSE. " AND cx2.id = bi.parentcontextid
-                JOIN {course} c ON c.id = cx2.instanceid
-                JOIN {files} f ON f.contextid = cx1.id
-            UNION ALL
-                SELECT c.id, f.filesize
-                FROM {course_modules} cm
-                JOIN {context} cx ON cx.contextlevel = ".CONTEXT_MODULE." AND cx.instanceid = cm.id
-                JOIN {course} c ON c.id = cm.course
-                JOIN {files} f ON f.contextid = cx.id";
-
-$sqlunion = "SELECT id AS course, SUM(filesize) AS filesize
-          FROM (SELECT c.id, f.filesize
-                  FROM {course} c
-                  JOIN {context} cx ON cx.contextlevel = ".CONTEXT_COURSE." AND cx.instanceid = c.id
-                  JOIN {files} f ON f.contextid = cx.id {$sqlunion}) x
-            GROUP BY id";
-
-
-$sql = "SELECT c.id, c.fullname, c.category, ca.name as categoryname, rc.filesize
-FROM {course} c
-JOIN ($sqlunion) rc on rc.course = c.id ";
+// $course_query = "SELECT cx.id
+// FROM {course} c
+// JOIN {context} cx ON cx.contextlevel = ".CONTEXT_COURSE." AND cx.instanceid = c.id
+// WHERE c.id = $courseid";
+// if($records = $DB->get_records_sql($course_query)){
+//     foreach($records as $record){
+//         if(!in_array($record->id, $contextids)){
+//             $contextids[] = $record->id;
+//         }
+//     }
+// }
+// $file_query = "SELECT SUM(f.filesize) AS filesize FROM {files} f WHERE f.contextid IN (".implode(",",$contextids).")";
+// if($record = $DB->get_record_sql($file_query)){
+//     $filesize = $record->filesize;
+// }
 
 
-$sql .= "JOIN {course_categories} ca on c.category = ca.id
-WHERE c.id = ".$courseid."
-ORDER BY rc.filesize DESC";
-$course = $DB->get_record_sql($sql);
-echo "<pre>", var_dump($course), "</pre>";
+// $coursesize = new \stdClass();
+// $coursesize->filesize = $filesize;
+// $coursesize->id = $courseid;
+
+// echo "<pre>", var_dump($coursesize), "</pre>";
+
+// echo "Duration : ". (microtime(true) - $start_time). "<br>";
+
+// echo "<br><br>Old Method <br>";
+// $start_time = microtime(true);
+
+// $sqlunion = "UNION ALL
+//                 SELECT c.id, f.filesize
+//                 FROM {block_instances} bi
+//                 JOIN {context} cx1 ON cx1.contextlevel = ".CONTEXT_BLOCK. " AND cx1.instanceid = bi.id
+//                 JOIN {context} cx2 ON cx2.contextlevel = ". CONTEXT_COURSE. " AND cx2.id = bi.parentcontextid
+//                 JOIN {course} c ON c.id = cx2.instanceid
+//                 JOIN {files} f ON f.contextid = cx1.id
+//             UNION ALL
+//                 SELECT c.id, f.filesize
+//                 FROM {course_modules} cm
+//                 JOIN {context} cx ON cx.contextlevel = ".CONTEXT_MODULE." AND cx.instanceid = cm.id
+//                 JOIN {course} c ON c.id = cm.course
+//                 JOIN {files} f ON f.contextid = cx.id";
+
+// $sqlunion = "SELECT id AS course, SUM(filesize) AS filesize
+//           FROM (SELECT c.id, f.filesize
+//                   FROM {course} c
+//                   JOIN {context} cx ON cx.contextlevel = ".CONTEXT_COURSE." AND cx.instanceid = c.id
+//                   JOIN {files} f ON f.contextid = cx.id {$sqlunion}) x
+//             GROUP BY id";
 
 
-echo "Duration : ". (microtime(true) - $start_time). "<br>";
+// $sql = "SELECT c.id, c.fullname, c.category, ca.name as categoryname, rc.filesize
+// FROM {course} c
+// JOIN ($sqlunion) rc on rc.course = c.id ";
+
+
+// $sql .= "JOIN {course_categories} ca on c.category = ca.id
+// WHERE c.id = ".$courseid."
+// ORDER BY rc.filesize DESC";
+// $course = $DB->get_record_sql($sql);
+// echo "<pre>", var_dump($course), "</pre>";
+
+
+$sourcecourse = $DB->get_record('course', ['id' => 1032]);
+$courseformat = course_get_format($sourcecourse);
+
+echo "<pre>", var_dump($courseformat), "</pre>";
+
+
+$settings = $courseformat->get_settings();
+echo "<pre>", var_dump($settings), "</pre>";
+
+$settings['gnumsections'] = 15;
+$courseformat->update_course_format_options($settings);
+
+
+echo "<pre>", var_dump($courseformat), "</pre>";
+
+// echo "Duration : ". (microtime(true) - $start_time). "<br>";

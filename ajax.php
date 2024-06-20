@@ -934,7 +934,7 @@ if (confirm_sesskey()) {
         if($done > 0 && !empty($cmids)){
             $percentage = ($done / $total) * 100;
         }
-
+        $message = "";
         $status = $record->status;
         if($status != ROLLOVER_WIZARD_INPROGRESS && ($status == ROLLOVER_WIZARD_PARTLYSUCCESS || $status == ROLLOVER_WIZARD_UNSUCCESS)){
             // $link = get_string('lxi_support_link', 'local_rollover_wizard');
