@@ -6,7 +6,7 @@
  */
 
 
-require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_events'], function ($, ModalFactory, notification, ModalEvents) {
+require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_events', 'core/str'], function ($, ModalFactory, notification, ModalEvents, Str) {
     
     // var index_page = M.cfg.wwwroot + '/local/rollover_wizard/index.php';
     var wizard_step = 1;
@@ -75,7 +75,7 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                     +'</div>';
                     main_modal = ModalFactory.create({
                         large: true,
-                        title: 'Import Content',
+                        title: Str.get_string('importcourse','local_rollover_wizard'),
                         // type: ModalFactory.types.SAVE_CANCEL,
                         body: '<div class="modal-body-container"></div>',
                         removeOnClose: true,

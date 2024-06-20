@@ -41,7 +41,7 @@ if (confirm_sesskey()) {
             // $mform->addElement('radio', 'content_option', '', get_string('content_option1','local_rollover_wizard'), 'blanktemplate');
             // $mform->addElement('radio', 'content_option', '', get_string('content_option2','local_rollover_wizard'), 'previouscourse');
             
-            $html = '<h2>Import Content</h2>'.'<p>Do you want to start from a blank template or import content from a previous course ?</p>';
+            $html = '<h2>'.get_string('importcourse','local_rollover_wizard').'</h2>'.'<p>Do you want to start from a blank template or import content from a previous course ?</p>';
             $warning = local_rollover_wizard_verify_course(null, ($_SESSION['local_rollover_wizard'][$data_key]['target_course'])->id, false);
             if(!empty($warning) && $warning !== '&nbsp;'){
                 $warning = "<div class='alert alert-warning'>".$warning."</div>";
@@ -56,7 +56,7 @@ if (confirm_sesskey()) {
                                     <label class="form-check-label">
                                         
                                         <input type="radio" class="form-check-input" name="content_option" id="id_content_option_blanktemplate" value="blanktemplate">
-                                            Import a Blank Template
+                                            '.get_string('content_option1','local_rollover_wizard').'
                                     </label>
                                     <div class="ml-2 d-flex align-items-center align-self-start">
                                         
@@ -76,7 +76,7 @@ if (confirm_sesskey()) {
                                     <label class="form-check-label">
                                         
                                         <input type="radio" class="form-check-input" name="content_option" id="id_content_option_previouscourse" value="previouscourse">
-                                            Import content from previous course you were enrolled in
+                                            '.get_string('content_option2','local_rollover_wizard').'
                                     </label>
                                     <div class="ml-2 d-flex align-items-center align-self-start">
                                         

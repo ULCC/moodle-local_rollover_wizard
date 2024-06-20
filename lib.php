@@ -182,6 +182,8 @@ function local_rollover_wizard_executerollover($mode = 1)
 
         mtrace('Content Rollover Wizard Taskid: ' . $rolloverqueue->taskid . ' Started.');
 
+        $sourcecourseid = $rolloverqueue->sourcecourseid;
+        $targetcourseid = $rolloverqueue->targetcourseid;
         if (!empty($rolloverqueue->cmids)) {
 
             if ($rolloverqueue->status != ROLLOVER_WIZARD_NOTSTARTED) {
@@ -228,7 +230,7 @@ function local_rollover_wizard_executerollover($mode = 1)
                     if(!$targetsection){
                         continue;
                     }
-                    if(!in_array($sourcesection->section, $includedsections)){
+                    if(!in_array($sourcesection->section, $includedsections) && $rolloverqueue->rollovermode == 'previouscourse'){
                         continue;
                     }
                     $targetsection->name = $sourcesection->name;
@@ -240,8 +242,6 @@ function local_rollover_wizard_executerollover($mode = 1)
                     $DB->update_record('course_sections', $targetsection);
 
                     // Copy section images if course format is grid
-                    $sourcecourseid = $rolloverqueue->sourcecourseid;
-                    $targetcourseid = $rolloverqueue->targetcourseid;
                     $sourcecourse = $DB->get_record('course', ['id' => $sourcecourseid]);
                     $courseformat = course_get_format($sourcecourse);
 

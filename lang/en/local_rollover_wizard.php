@@ -28,8 +28,8 @@ defined('MOODLE_INTERNAL') || die();
 $string['pluginname'] = 'Content Rollover Wizard';
 $string['importcourse'] = 'Import Content';
 $string['rollover_wizard:edit'] = 'Allow access to Content Rollover Wizard';
-$string['content_option1'] = 'Import a Blank Template';
-$string['content_option2'] = 'Import content from previous course you were enrolled in';
+$string['content_option1'] = 'Import a module page template';
+$string['content_option2'] = 'Import content from another module page';
 
 $string['setting_page:category'] = 'Rollover Wizard';
 
@@ -38,7 +38,7 @@ Dear {FULLNAME},
 <br><br>
 A course content rollover has been completed. View the results here: {REPORT-LINK}';
 $string['wizard_support_company'] = 'LXI';
-$string['wizard_support_link'] = '#';
+$string['wizard_support_link'] = 'https://google.com';
 $string['wizard_support_text'] = 'The content import did not complete due to : <br>{NOTE}<br><p>Please contact {LINK} for support</p>';
 
 $string['cron_schedulling_description'] = 'Tick this checkbox to enable cron schedulling to make rollover task above threshold setting below run through scheduled task. If this disabled, all rollover task will instantly executed';
