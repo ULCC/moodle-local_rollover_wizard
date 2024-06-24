@@ -309,6 +309,26 @@ function local_rollover_wizard_executerollover($mode = 1)
             foreach ($cmids as $cmid) {
                 if($cmid == 'coursesettings'){
                     try{
+                        
+                        $fs = get_file_storage();
+                        $oldtargetcourse = $DB->get_record('course', ['id' => $targetcourseid]);
+                        $oldhasfile = false;
+
+                        $oldtargetcontext = \context_course::instance($oldtargetcourse->id);
+                        
+                        $sql = "SELECT itemid, filename
+                        FROM {files}
+                        WHERE component='course'
+                            AND filearea='overviewfiles'
+                            AND contextid=:contextid LIMIT 1";
+                        $filerecord = $DB->get_record_sql($sql, ['contextid' => $oldtargetcontext->id]);
+                        $file = null;
+                        if(!empty($filerecord)){
+                            $file = $fs->get_file($oldtargetcontext->id, 'course', 'overviewfiles', 0, '/', $filerecord->filename);
+                            $oldhasfile = true;
+                        }
+
+
                         $backuptempdir = make_backup_temp_directory('');
                         $packer = get_file_packer('application/vnd.moodle.backup');
                         $admin = get_admin();
@@ -378,6 +398,37 @@ function local_rollover_wizard_executerollover($mode = 1)
                             
                             $targetsetting['gnumsections'] = $sourcesetting['gnumsections'];
                             $targetcourseformat->update_course_format_options($targetsetting);
+                        }
+
+                        
+                        $targetcourse = $DB->get_record('course', ['id' => $targetcourseid]);
+                        $targetcourse->summary = $oldtargetcourse->summary;
+                        $targetcourse->summaryformat = $oldtargetcourse->summaryformat;
+                        $targetcourse->visible = $oldtargetcourse->visible;
+                        $targetcourse->visibleold = $oldtargetcourse->visibleold;
+                        $targetcourse->startdate = $oldtargetcourse->startdate;
+                        $targetcourse->enddate = $oldtargetcourse->enddate;
+                        $targetcourse->idnumber = $oldtargetcourse->idnumber;
+
+                        $DB->update_record('course', $targetcourse);
+
+                        $targetcontext = \context_course::instance($targetcourse->id);
+                            
+                        $sql = "SELECT itemid, filename
+                        FROM {files}
+                        WHERE component='course'
+                            AND filearea='overviewfiles'
+                            AND contextid=:contextid LIMIT 1";
+                        $filerecord = $DB->get_record_sql($sql, ['contextid' => $targetcontext->id]);
+                        $file = null;
+
+                        if(!$oldhasfile){
+                            if(!empty($filerecord)){
+                                $file = $fs->get_file($targetcontext->id, 'course', 'overviewfiles', 0, '/', $filerecord->filename);
+                            }
+                            if($file){
+                                $file->delete();
+                            }
                         }
                     }catch(\Throwable $e){
                         mtrace("Course Settings failed: " . $e->getMessage());
