@@ -22,6 +22,7 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
     var wizard_taskid = null;
     var data_key = null;
     var hasruntask = false;
+    let activity_non_selected=[];
     $(document).ready(function(){
         var promise = ajax('retrievesessiondata');
         promise.then(function(result){
@@ -340,14 +341,23 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                             section: section 
                         });
                     }
+                    
+                    if(!checked){
+                        activity_non_selected.push({
+                            key: key,
+                            value: value 
+                        })
+                    }
                 });
+
+              
                 
                 if(wizard_selected_activity.length < 1){
                     notification.alert('Info', 'Please select activity type.', 'Ok');
                     return;
                 }
                 var data = JSON.stringify(wizard_selected_activity);
-                var promise = ajax('saveselectedactivity', {selectedactivity: data});
+                var promise = ajax('saveselectedactivity', {selectedactivity: data,nonselected:JSON.stringify(activity_non_selected)});
                 promise.then(function(result){
                     if (result.length != 0) {
                         var result = JSON.parse(result);
@@ -546,7 +556,11 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                             $(root).find('#btn-confirm-process').on('click', function(){
                                 $(root).find('#container-notif').hide();
                                 $(root).find('#container-loading').show();
-                                var promise = ajax('startrollover', {mode: wizard_mode});
+                                let parseToArray=[];
+                                for (var index=0;index<activity_non_selected.length;index++) {
+                                    parseToArray.push(activity_non_selected[index].key+"_"+activity_non_selected[index].value);
+                                }          
+                                var promise = ajax('startrollover', {mode: wizard_mode,activity:JSON.stringify(parseToArray)});
                                 promise.then(function(result){
                                     if (result.length != 0) {
                                         var result = JSON.parse(result);
@@ -588,7 +602,7 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                     $.ajax({
                         type: 'POST',
                         url: M.cfg.wwwroot + '/local/rollover_wizard/ajax.php',
-                        data: { action: 'checkrolloverstate', taskid: wizard_taskid, data_key: data_key, sesskey: M.cfg.sesskey },
+                        data: { action: 'checkrolloverstate', taskid: wizard_taskid, data_key: data_key, sesskey: M.cfg.sesskey},
                         beforeSend: function () {
                             // if(!hasruntask){
                             //     hasruntask = true;
