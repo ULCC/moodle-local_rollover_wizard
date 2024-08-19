@@ -89,7 +89,6 @@ function xmldb_local_rollover_wizard_upgrade($oldversion) {
             $dbman->add_field($table, $field);
         }
 
-        
         $field = new xmldb_field('sourcecourseid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'mode');
 
         // Launch change of nullability for field sourcecourseid.
@@ -103,7 +102,6 @@ function xmldb_local_rollover_wizard_upgrade($oldversion) {
         // Define field instantexecute to be added to local_rollover_wizard_log.
         $table = new xmldb_table('local_rollover_wizard_log');
 
-        
         $field = new xmldb_field('mode', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, null, 'taskid');
 
         // Launch rename field rollovermode.

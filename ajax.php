@@ -920,18 +920,9 @@ if (confirm_sesskey()) {
         exit;
 
     } else if ($action == 'checkrolloverstate') {
-
         $taskid = required_param('taskid', PARAM_INT);
-
         $record = $DB->get_record('local_rollover_wizard_log', ['taskid' => $taskid]);
-        $cmids = json_decode($record->cmids);
-        $rolledovercmids = explode(',', $record->rolledovercmids);
-        $total = count($cmids);
-        $done = count($rolledovercmids);
         $percentage = 1;
-        if ($done > 0 && !empty($cmids)) {
-            $percentage = ($done / $total) * 100;
-        }
         $message = "";
         $status = $record->status;
         if ($status != ROLLOVER_WIZARD_INPROGRESS && ($status == ROLLOVER_WIZARD_PARTLYSUCCESS || $status == ROLLOVER_WIZARD_UNSUCCESS)) {

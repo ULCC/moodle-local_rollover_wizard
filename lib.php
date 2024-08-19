@@ -888,8 +888,48 @@ function local_rollover_wizard_update_internal_links($rolloverqueue) {
  */
 function get_activities_by_section($sectionid) {
     global $DB;
-
     $contents = $DB->get_records_sql("SELECT * FROM {course_modules} WHERE section = :sectionid", ['sectionid' => $sectionid]);
-
     return $contents;
+}
+
+/**
+ * Updates the intro and intro format fields of a course module in Moodle.
+ *
+ * This function is specifically designed to update only the intro text and its format
+ * for a given course module. It handles saving any embedded files in the intro field
+ * and updates the relevant records in the database.
+ *
+ * @param stdClass $cm The course module object, containing the existing settings for the module.
+ * @param stdClass $moduleinfo The module information object, containing the new data to be saved.
+ * @param stdClass $course The course object, representing the course the module belongs to.
+ * @param moodleform|null $mform Optional form data, typically passed when handling form submissions.
+ *
+ * @return void An array containing the updated course module object ($cm) and the updated module info ($moduleinfo).
+ */
+function update_moduleinfo_intro($cm, $moduleinfo, $course) {
+    global $DB, $CFG;
+
+    // Include the module library if not already included.
+    include_modulelib($moduleinfo->modulename);
+
+    // Set the course ID.
+    $moduleinfo->course = $course->id;
+
+    // Fetch the module context.
+    $modcontext = context_module::instance($moduleinfo->coursemodule);
+
+    // Update embedded links and save files for the intro if the module supports it.
+    if (plugin_supports('mod', $moduleinfo->modulename, FEATURE_MOD_INTRO, true)) {
+        // Save the intro text with any embedded files.
+        $moduleinfo->intro = file_save_draft_area_files($moduleinfo->introeditor['itemid'], $modcontext->id,
+                                                        'mod_' . $moduleinfo->modulename, 'intro', 0,
+                                                        ['subdirs' => true], $moduleinfo->introeditor['text']);
+        // Update the intro format.
+        $moduleinfo->introformat = $moduleinfo->introeditor['format'];
+        // Remove the intro editor data as it's no longer needed.
+        unset($moduleinfo->introeditor);
+    }
+
+    // Update the course module record with the new intro and intro format.
+    $DB->update_record('course_modules', $cm);
 }

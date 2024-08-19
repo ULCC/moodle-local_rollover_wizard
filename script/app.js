@@ -594,47 +594,54 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
         $(root).find('#wizard_next_container').parent().addClass('justify-content-end');
         if(rollover_process_mode == 'instantexecute'){
             // hasruntask = false;
-            var interval1 = setInterval(function(){
+            var requestsCompleted = 0;
+            var interval1 = setInterval(function() {
                 modal.destroy();
                 startRolloverTask();
                 hasruntask = true;
+            
                 var interval2 = setInterval(function() {
                     $.ajax({
                         type: 'POST',
                         url: M.cfg.wwwroot + '/local/rollover_wizard/ajax.php',
-                        data: { action: 'checkrolloverstate', taskid: wizard_taskid, data_key: data_key, sesskey: M.cfg.sesskey},
-                        beforeSend: function () {
-                            // if(!hasruntask){
-                            //     hasruntask = true;
-                            //     modal.destroy();
-                            //     startRolloverTask();
-                            // }
-                        },
-                        success: function (response) {
+                        data: { action: 'checkrolloverstate', taskid: wizard_taskid, data_key: data_key, sesskey: M.cfg.sesskey },
+                        success: function(response) {
                             if(response.length != 0) {
                                 var result = JSON.parse(response);
-                                if(result.status == 200){
-                                    var root = main_modal.getRoot();
+                                if(result.status == 200) {
                                     var data = result.data;
-                                    var percentage = parseInt(data.percentage);
-                                    if(data.rolloverstatus != 'Successful' && data.rolloverstatus != 'Unsuccessful' && data.rolloverstatus != 'Partly-Successful'){
-                                        $(root).find('#rollover-progress-bar').css('width', percentage+"%");
-                                    }
-                                    else{
+            
+                                    // Update checksCompleted and possibly the estimated total checks
+                                    if (data.rolloverstatus != 'Successful' && data.rolloverstatus != 'Unsuccessful' && data.rolloverstatus != 'Partly-Successful') {
+                                        requestsCompleted++;
+                                        var totalRequests = requestsCompleted + 1;
+                                        var percentage=0;
+                                        if (requestsCompleted === 1) {
+                                            percentage =5;
+                                        } else{
+                                            percentage = (requestsCompleted / totalRequests) * 100;
+                                        }  
+                                        $('#rollover-progress-bar').css('width', percentage + "%");
+                                       
+                                    } else {
                                         clearInterval(interval2);
-                                        $(root).find('.rollover-finish-notification').html(data.message);
-                                        $(root).find('#wizard_next_container').show();
-                                        $(root).find('#wizard_next_button').html('Finish');
+                                        $('#rollover-progress-bar').css('width', 100 + "%");
+                                        setTimeout(function(){
+                                            $('.rollover-finish-notification').html(data.message);
+                                            $('#wizard_next_container').show();
+                                            $('#wizard_next_button').html('Finish');
+                                        },1000);
+                                    
                                     }
                                 }
                             }
                         }
                     });
                 }, 10000);
-
-                
+            
                 clearInterval(interval1);
-            },5000);
+            }, 5000);
+            
         }
         if(rollover_process_mode == 'cron'){
             modal.destroy();
