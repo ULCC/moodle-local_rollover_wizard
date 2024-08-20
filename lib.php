@@ -222,7 +222,11 @@ function local_rollover_wizard_executerollover($mode = 1) {
     foreach ($rolloverqueues as $rolloverqueue) {
 
         $rolloverqueue = $DB->get_record('local_rollover_wizard_log', ['id' => $rolloverqueue->id]);
-
+        $params = [
+            "id"=>$rolloverqueue->sourcecourseid
+        ];
+        $course=$DB->get_record("course",$params,"*",MUST_EXIST);
+      
         mtrace('Content Rollover Wizard Taskid: ' . $rolloverqueue->taskid . ' Started.');
 
         $sourcecourseid = $rolloverqueue->sourcecourseid;
@@ -304,7 +308,6 @@ function local_rollover_wizard_executerollover($mode = 1) {
             if (!$enabled) {
                 local_rollover_wizard_update_internal_links($rolloverqueue);
             }
-
             // 3. Proccess import course setting to target course.
             $cmids = json_decode($rolloverqueue->cmids);
             foreach ($cmids as $cmid) {
@@ -458,11 +461,9 @@ function local_rollover_wizard_executerollover($mode = 1) {
         }
 
         // End of Rollover Blocks.
-
         // Purge Caches.
         rebuild_course_cache($rolloverqueue->targetcourseid, true);
         mtrace('TaskID ' . $rolloverqueue->taskid . ' finished.');
-
         $setting = get_config('local_rollover_wizard');
         if (!empty($setting->enable_email_notification) && $setting->enable_email_notification == 1) {
             try {
@@ -583,6 +584,71 @@ function local_rollover_wizard_rewrite_summary($sourcesection, $targetsection) {
     return $summary;
 }
 
+
+function local_rollover_wizard_rewrite_format_intro($source_module, $target_module) {
+    global $DB;
+
+    $summary = $source_module->intro;
+    $sourcecontext = context_module::instance($source_module->coursemodule);
+    $targetcontext = context_module::instance($target_module->coursemodule);
+
+    $doc = new DOMDocument;
+    $doc->preserveWhiteSpace = false;
+    @$doc->loadHTML('<?xml encoding="utf-8" ?><div>' . $summary . '</div>');
+    $xpath = new DOMXpath($doc);
+    $rawsrcs = ['//img/@src', '//a/@href'];
+
+    foreach ($rawsrcs as $rawsrc) {
+        $srcs = $xpath->query($rawsrc);
+        foreach ($srcs as $src) {
+            $nameonly = str_replace('@@PLUGINFILE@@/', '', $src->nodeValue);
+            $nameonly = explode('?', $nameonly)[0];
+            $nameonly = urldecode($nameonly);
+
+            $sql = "SELECT itemid
+                    FROM {files}
+                    WHERE component='mod_{$target_module->modname}'
+                        AND filearea='intro'
+                        AND " . $DB->sql_compare_text('filename') . "=" . $DB->sql_compare_text(':filename') . "
+                        AND contextid=:contextid LIMIT 1";
+            $fileitemid = $DB->get_field_sql($sql, ['contextid' => $targetcontext->id, 'filename' => $nameonly]);
+
+            if (empty($fileitemid)) {
+                $fs = get_file_storage();
+                $file = $fs->get_file($sourcecontext->id, 'mod_' . $source_module->modname, 'intro', $source_module->id, '/', $nameonly);
+                if (!$file) {
+                    continue;
+                }
+                $newfilerecord = [
+                    'contextid'    => $targetcontext->id,
+                    'component'    => $file->get_component(),
+                    'filearea'     => $file->get_filearea(),
+                    'itemid'       => $target_module->id,
+                    'filepath'     => $file->get_filepath(),
+                    'filename'     => $file->get_filename(),
+                    'timecreated'  => time(),
+                    'timemodified' => time(),
+                ];
+                $fs->create_file_from_storedfile($newfilerecord, $file);
+
+                $fileitemid = $DB->get_field_sql($sql, ['contextid' => $targetcontext->id, 'filename' => $nameonly]);
+            }
+
+            if (!empty($fileitemid)) {
+                $path = file_rewrite_pluginfile_urls($src->nodeValue,
+                'pluginfile.php',
+                 $targetcontext->id,
+                'mod_' . $target_module->modname,
+                'intro',
+                 $fileitemid
+                );
+                $summary = str_replace($src->nodeValue, $path, $summary);
+            }
+        }
+    }
+
+    return $summary;
+}
 /**
  * Fixes image references within HTML blocks during a rollover wizard.
  *
@@ -870,11 +936,6 @@ function local_rollover_wizard_update_internal_links($rolloverqueue) {
         $targetsection->visible = $sourcesection->visible;
         $targetsection->timemodified = time();
         $DB->update_record('course_sections', $targetsection);
-
-        $sourceactivities = get_activities_by_section($sourcesection->id);
-        $targetactivities = get_activities_by_section($targetsection->id);
-        mtrace("Activity source : ".json_encode($sourceactivities));
-        mtrace("Activity target : ".json_encode($targetactivities));
     }
 }
 
@@ -906,30 +967,39 @@ function get_activities_by_section($sectionid) {
  *
  * @return void An array containing the updated course module object ($cm) and the updated module info ($moduleinfo).
  */
-function update_moduleinfo_intro($cm, $moduleinfo, $course) {
-    global $DB, $CFG;
 
-    // Include the module library if not already included.
-    include_modulelib($moduleinfo->modulename);
 
-    // Set the course ID.
-    $moduleinfo->course = $course->id;
+function local_rollover_wizard_update_link_activities($rolloverqueue) {
+    global $DB;
 
-    // Fetch the module context.
-    $modcontext = context_module::instance($moduleinfo->coursemodule);
+    $sourcecourseid = $rolloverqueue->sourcecourseid;
+    $targetcourseid = $rolloverqueue->targetcourseid;
 
-    // Update embedded links and save files for the intro if the module supports it.
-    if (plugin_supports('mod', $moduleinfo->modulename, FEATURE_MOD_INTRO, true)) {
-        // Save the intro text with any embedded files.
-        $moduleinfo->intro = file_save_draft_area_files($moduleinfo->introeditor['itemid'], $modcontext->id,
-                                                        'mod_' . $moduleinfo->modulename, 'intro', 0,
-                                                        ['subdirs' => true], $moduleinfo->introeditor['text']);
-        // Update the intro format.
-        $moduleinfo->introformat = $moduleinfo->introeditor['format'];
-        // Remove the intro editor data as it's no longer needed.
-        unset($moduleinfo->introeditor);
+    $source_modinfo = get_fast_modinfo($sourcecourseid);
+    $target_modinfo = get_fast_modinfo($targetcourseid);
+
+    $source_modules = $source_modinfo->get_cms();
+    $target_modules = $target_modinfo->get_cms();
+    
+
+    foreach ($source_modules as $source_cmid => $source_cm) {
+        mtrace("target mod name ".json_encode($source_cm->instance));
+        // $source_modname = $source_cm->modname;
+        // $source_instanceid = $source_cm->instance;
+        // $target_instanceid = $target_cm->instance;
+
+
+        // $source_module = $DB->get_record($source_modname, ['id' => $source_instanceid], '*', MUST_EXIST);
+        // mtrace("Update Data : ".json_encode($source_module));
+        
+
+        // $target_module = $DB->get_record($source_modname, ['id' => $target_instanceid], '*', MUST_EXIST);
+          
+        // if ($source_module && $target_module) {
+        //     $target_module->intro = local_rollover_wizard_rewrite_format_intro($source_module, $target_module);
+        //     $target_module->introformat = $source_module->introformat;
+        //     // $DB->update_record($source_modname, $target_module);
+        // }
     }
 
-    // Update the course module record with the new intro and intro format.
-    $DB->update_record('course_modules', $cm);
 }

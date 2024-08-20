@@ -316,7 +316,7 @@ if (confirm_sesskey()) {
 
                 $coursecontext = \context_course::instance($targetcourse->id);
                 $PAGE->set_context($coursecontext);
-
+             
                 $excludedactivitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
                 $excludedactivitytypes = array_map('trim', $excludedactivitytypes);
                 foreach ($coursesections as $section) {
@@ -326,7 +326,7 @@ if (confirm_sesskey()) {
                     $html .= '<div class="d-flex justify-content-between w-80 text-center">';
                     $html .= '<div class="form-check"><input class="form-check-input position-static rollover-check-section"';
                     $html .= ' data-section="'.$section->section.'" name="rollover-wizard-cm[]" data-module="coursesections"';
-                    $html .= ' data-section="'.$section->section.'" type="checkbox" value="'.$section->section.'"></div>';
+                    $html .= ' data-section="'.$section->section.'" type="checkbox" value="'.$section->section.'" data-id="'.$section->id.'"></div>';
                     $html .= '<div style="flex-grow:1;cursor:pointer;" data-toggle="collapse"';
                     $html .= ' data-target="#collapsecontainer'.$iteration.'"><b>'.get_section_name($sourcecourse->id, $section->section)."</b></div>";
                     $html .= '<i class="collapse-toggle" style="cursor:pointer;" data-toggle="collapse" data-target="#collapsecontainer'.$iteration.'"></i>';
@@ -864,9 +864,7 @@ if (confirm_sesskey()) {
                 }
             }
         }
-
         $instantexecute = 1;
-
         $iscron = local_rollover_wizard_is_crontask($sourcecourse->id);
         if ($iscron) {
             $instantexecute = 0;
