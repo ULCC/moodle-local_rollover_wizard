@@ -250,7 +250,7 @@ function local_rollover_wizard_executerollover($mode = 1) {
 
             // 1. Proccess activity section to target course.
             try {
-                mtrace("Excluded activity types: " . json_encode($curexcludedactivitytypes));
+                // mtrace("Excluded activity types: " . json_encode($curexcludedactivitytypes));
 
                 // Create backup controller.
                 $bc = new backup_controller(
