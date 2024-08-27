@@ -15,23 +15,22 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Plugin capabilities
  *
  * @package    local_rollover_wizard
- * @copyright  2024 Cosector Development <dev@cosector.co.uk>
+ * @copyright  2023 Cosector ULCC
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
+ define('CLI_SCRIPT', true);
+ require_once('../../config.php');
+ require_once($CFG->dirroot . '/course/lib.php');
+ require_once($CFG->libdir . '/cronlib.php');
+ require_once($CFG->dirroot . '/backup/util/includes/backup_includes.php');
+ require_once($CFG->dirroot . '/backup/util/includes/restore_includes.php');
+ require_once($CFG->libdir . '/filelib.php');
+ require_once($CFG->dirroot . '/local/rollover_wizard/lib.php');
 
-$capabilities = [
+ $taskid = $argv[1];
 
-    'local/rollover_wizard:edit' => [
-        'captype' => 'write',
-        'contextlevel' => CONTEXT_SYSTEM,
-        'archetypes' => [
-            'manager' => CAP_ALLOW,
-        ],
-    ],
+ local_rollover_wizard_executerollover(1,$taskid);
 
-];
