@@ -24,14 +24,14 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$capabilities = [
+$capabilities = array(
 
-    'local/rollover_wizard:edit' => [
+    'local/rollover_wizard:edit' => array(
         'captype' => 'write',
         'contextlevel' => CONTEXT_SYSTEM,
-        'archetypes' => [
-            'manager' => CAP_ALLOW,
-        ],
-    ],
+        'archetypes' => array(
+            'manager' => CAP_ALLOW
+        )
+    ),
 
-];
+);

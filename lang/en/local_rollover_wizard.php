@@ -42,6 +42,3 @@ $string['wizard_support_link'] = 'https://google.com';
 $string['wizard_support_text'] = 'The content import did not complete due to : <br>{NOTE}<br><p>Please contact {LINK} for support</p>';
 
 $string['cron_schedulling_description'] = 'Tick this checkbox to enable cron schedulling to make rollover task above threshold setting below run through scheduled task. If this disabled, all rollover task will instantly executed';
-
-$string["config:enable_link"] = "Update Internal Links";
-$string["config:enable_link:desc"] = "Check this box to update internal and embedded links so that they point to the target course. If left unchecked, the links will remain pointing to the source course";
