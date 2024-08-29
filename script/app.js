@@ -609,6 +609,8 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
             var interval1 = setInterval(function() {
                 modal.destroy();
                 startRolloverTask();
+                // Initial progress percentage
+                $('#rollover-progress-bar').css('width', 7 + "%");
                 hasruntask = true;
             
                 var interval2 = setInterval(function() {
