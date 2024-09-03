@@ -831,6 +831,7 @@ if (confirm_sesskey()) {
         $mode = required_param('mode', PARAM_RAW);
         $datakey = required_param('data_key', PARAM_INT);
         $activity = required_param("activity", PARAM_TEXT);
+        $section = required_param("nonsection",PARAM_TEXT);
         $excludedactivitytypes = (empty(trim($activity))) ? [] : json_decode($activity);
         $sessiondata = $_SESSION['local_rollover_wizard'][$datakey];
         $targetcourse = $sessiondata['target_course'];
@@ -870,6 +871,7 @@ if (confirm_sesskey()) {
             $instantexecute = 0;
         }
 
+        $excludesection = json_decode($section);
         $taskid = time();
         $newrollover = new \stdClass();
         $newrollover->taskid = $taskid;

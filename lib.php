@@ -206,7 +206,6 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
         }
     }
     $enabled = get_config("local_rollover_wizard", "update_internal_link");
-
     foreach ($rolloverqueues as $rolloverqueue) {
 
         $rolloverqueue = $DB->get_record('local_rollover_wizard_log', ['id' => $rolloverqueue->id]);
@@ -227,6 +226,7 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
             }
 
             mtrace('TaskID ' . $rolloverqueue->taskid . ' Started.');
+            
 
             $note = '';
             $rolledovercmids = '';
@@ -238,7 +238,6 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
 
             // 1. Proccess activity section to target course.
             try {
-               
                 // Create backup controller.
                 $bc = new backup_controller(
                     backup::TYPE_1COURSE,
@@ -252,7 +251,6 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
                 foreach ($settings as $setting) {
                     $settingname = $setting->get_name();
                     $shouldinclude = true;
-                    mtrace("Backup : ".$settingname);
                     foreach ($curexcludedactivitytypes as $excludedactivity) {
                         if (strpos($settingname, $excludedactivity) !== false) {
                             $shouldinclude = false;
@@ -281,11 +279,7 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
                 $settings = $rc->get_plan()->get_settings();
                 foreach ($settings as $setting) {
                     $settingname = $setting->get_name();
-                    if (in_array($settingname, ['users', 'enrolments','permissions'])) {
-                        $setting->set_value(0);
-                        mtrace("Disabled restore for: " . $settingname);
-                    }
-                   
+                    mtrace("Restore : ".$settingname);
                 }
                 $rc->execute_precheck();
                 $rc->execute_plan();
@@ -299,8 +293,9 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
                     $dbman->drop_table(new \xmldb_table('backup_files_temp'));
                 }
             }
-            // 2. Proccess Check link to source course
 
+        
+            // 2. Proccess Check link to source course
             if (!$enabled) {
                 local_rollover_wizard_update_internal_links($rolloverqueue);
             }
@@ -391,13 +386,41 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
                         }
                         $rc->execute_plan();
                         $rc->destroy();
+
+                        // Course setting update.
+                        $targetcourse = $DB->get_record('course', ['id' => $targetcourseid]);
+                        $targetcourse->summary = $oldtargetcourse->summary;
+                        $targetcourse->summaryformat = $oldtargetcourse->summaryformat;
+                        $targetcourse->visible = $oldtargetcourse->visible;
+                        $targetcourse->visibleold = $oldtargetcourse->visibleold;
+                        $targetcourse->startdate = $oldtargetcourse->startdate;
+                        $targetcourse->enddate = $oldtargetcourse->enddate;
+                        $targetcourse->idnumber = $oldtargetcourse->idnumber;
+
+                        $DB->update_record('course', $targetcourse);
+
+                        $targetcontext = \context_course::instance($targetcourse->id);
+                        $sql = "SELECT itemid, filename
+                        FROM {files}
+                        WHERE component='course'
+                            AND filearea='overviewfiles'
+                            AND contextid=:contextid LIMIT 1";
+                        $filerecord = $DB->get_record_sql($sql, ['contextid' => $targetcontext->id]);
+                        $file = null;
+                        if(!$oldhasfile){
+                            if(!empty($filerecord)){
+                                $file = $fs->get_file($targetcontext->id, 'course', 'overviewfiles', 0, '/', $filerecord->filename);
+                            }
+                            if($file){
+                                $file->delete();
+                            }
+                        }
                     } catch (\Throwable $e) {
                         mtrace("Course Settings failed: " . $e->getMessage());
                         $note .= "Course Settings failed: " . $e->getMessage() . '<br>';
                     }
                 }
             }
-
             rebuild_course_cache($rolloverqueue->targetcourseid, true);
             if (empty($note)) {
                 $rolloverqueue->status = ROLLOVER_WIZARD_SUCCESS;
@@ -424,7 +447,6 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
             } catch (\Exception $e) {
                 mtrace("Error at sending email out: " . $e->getMessage());
             }
-
         }
         mtrace('Rollover process finished.');
     }

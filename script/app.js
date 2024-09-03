@@ -561,17 +561,19 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                                 $(root).find('#container-notif').hide();
                                 $(root).find('#container-loading').show();
                                 let parseToArray=[];
+                                let NonSelectedSection = [];
                               
                                 for (var index=0;index<activity_non_selected.length;index++) {
                                     if(activity_non_selected[index].key==='coursesections'){
                                         activity_non_selected[index].key="section";
                                         parseToArray.push(activity_non_selected[index].key+"_"+activity_non_selected[index].id);     
+                                        NonSelectedSection.push(activity_non_selected[index].value);
                                     }else{
                                         parseToArray.push(activity_non_selected[index].key+"_"+activity_non_selected[index].value);
                                     }
                                    
                                 }          
-                                var promise = ajax('startrollover', {mode: wizard_mode,activity:JSON.stringify(parseToArray)});
+                                var promise = ajax('startrollover', {mode: wizard_mode,activity:JSON.stringify(parseToArray),nonsection:JSON.stringify(NonSelectedSection)});
                                 promise.then(function(result){
                                     if (result.length != 0) {
                                         var result = JSON.parse(result);
@@ -595,9 +597,7 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
     function startRollover(modal, rollover_process_mode = 'instantexecute'){
         wizard_step++;
         modalChangeView();
-        
         var root = main_modal.getRoot();
-                        
         $(root).find('#wizard_cancel_container').hide();
         $(root).find('#wizard_progress_container').hide();
         $(root).find('#wizard_next_container').hide();
@@ -606,13 +606,21 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
         if(rollover_process_mode == 'instantexecute'){
             // hasruntask = false;
             var requestsCompleted = 0;
+            var percentage=0;
             var interval1 = setInterval(function() {
                 modal.destroy();
                 startRolloverTask();
-                // Initial progress percentage
-                $('#rollover-progress-bar').css('width', 7 + "%");
                 hasruntask = true;
-            
+                increment = 0;
+                var gradualInterval = setInterval(function() {
+                    if (increment < 10) {
+                        percentage += 1;
+                        increment += 1;
+                        $('#rollover-progress-bar').css('width', percentage + "%");
+                    } else {
+                        clearInterval(gradualInterval);
+                    }
+                }, 1000); 
                 var interval2 = setInterval(function() {
                     $.ajax({
                         type: 'POST',
@@ -624,17 +632,25 @@ require(['jquery',  'core/modal_factory', 'core/notification', 'core/modal_event
                                 if(result.status == 200) {
                                     var data = result.data;
             
-                                    // Update checksCompleted and possibly the estimated total checks
+                                    // Update checksCompleted and possibly the estimated total checks.
                                     if (data.rolloverstatus != 'Successful' && data.rolloverstatus != 'Unsuccessful' && data.rolloverstatus != 'Partly-Successful') {
                                         requestsCompleted++;
                                         var totalRequests = requestsCompleted + 1;
-                                        var percentage=0;
+                                      
                                         if (requestsCompleted === 1) {
-                                            percentage =5;
+                                            percentage =10;
                                         } else{
                                             percentage = (requestsCompleted / totalRequests) * 100;
                                         }  
-                                        $('#rollover-progress-bar').css('width', percentage + "%");
+                                        increment = 0;
+                                        var gradualInterval = setInterval(function() {
+                                            if (increment < (percentage - $('#rollover-progress-bar').width() / $('#rollover-progress-bar').parent().width() * 100)) {
+                                                increment += 1; 
+                                                $('#rollover-progress-bar').css('width', ($('#rollover-progress-bar').width() / $('#rollover-progress-bar').parent().width() * 100 + 1) + "%");
+                                            } else {
+                                                clearInterval(gradualInterval);
+                                            }
+                                        }, 100);
                                        
                                     } else {
                                         clearInterval(interval2);
