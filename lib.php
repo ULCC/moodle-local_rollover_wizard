@@ -206,8 +206,8 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
         }
     }
     $enabled = get_config("local_rollover_wizard", "update_internal_link");
+   
     foreach ($rolloverqueues as $rolloverqueue) {
-
         $rolloverqueue = $DB->get_record('local_rollover_wizard_log', ['id' => $rolloverqueue->id]);
         $params = [
             "id"=>$rolloverqueue->sourcecourseid
@@ -226,8 +226,6 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
             }
 
             mtrace('TaskID ' . $rolloverqueue->taskid . ' Started.');
-            
-
             $note = '';
             $rolledovercmids = '';
             $includedsections = [];
@@ -247,21 +245,6 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
                     backup::MODE_IMPORT,
                     $useridrollover
                 );
-                $settings = $bc->get_plan()->get_settings();
-                foreach ($settings as $setting) {
-                    $settingname = $setting->get_name();
-                    $shouldinclude = true;
-                    foreach ($curexcludedactivitytypes as $excludedactivity) {
-                        if (strpos($settingname, $excludedactivity) !== false) {
-                            $shouldinclude = false;
-                            break;
-                        }
-                    }
-                    if (!$shouldinclude) {
-                        $setting->set_value(0);
-                        mtrace("Disabled setting: " . $settingname);
-                    }
-                }
                 // Run plan backup.
                 $bc->execute_plan();
                 $backupid = $bc->get_backupid();
@@ -279,7 +262,18 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
                 $settings = $rc->get_plan()->get_settings();
                 foreach ($settings as $setting) {
                     $settingname = $setting->get_name();
-                    mtrace("Restore : ".$settingname);
+                    $shouldinclude = true;
+                    mtrace("Restore Setting :".$settingname);
+                    foreach ($curexcludedactivitytypes as $excludedactivity) {
+                        if (strpos($settingname, $excludedactivity) !== false) {
+                            $shouldinclude = false;
+                            break;
+                        }
+                    }
+                    if (!$shouldinclude) {
+                        $setting->set_value(0);
+                        mtrace("Disabled setting: " . $settingname);
+                    }
                 }
                 $rc->execute_precheck();
                 $rc->execute_plan();
@@ -420,6 +414,90 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
                         $note .= "Course Settings failed: " . $e->getMessage() . '<br>';
                     }
                 }
+            }
+
+           if($rolloverqueue->rollovermode == 'previouscourse' && !empty($rolloverqueue->selectedsections)){
+                $checksections = true;
+                $includedsections = json_decode($rolloverqueue->selectedsections);
+            }
+            
+            $targetsections = $DB->get_records_sql("SELECT id, section, name, summary, summaryformat, visible FROM {course_sections} WHERE course = :courseid AND section > 0 ORDER BY section ASC",
+            ['courseid' => $rolloverqueue->targetcourseid]);
+            foreach($targetsections as $targetsection){
+                $originalsections[] = $targetsection->id;
+            }
+            local_rollover_wizard_course_create_sections_if_missing($rolloverqueue->targetcourseid, $rolloverqueue->sourcecourseid, $checksections, $includedsections);
+
+            $sourcesections = $DB->get_records_sql("SELECT id, section, course, name, summary, summaryformat, visible FROM {course_sections} WHERE course = :courseid ORDER BY section ASC",
+                ['courseid' => $rolloverqueue->sourcecourseid]);
+
+            // Update the name and summary of target sections
+            foreach ($sourcesections as $sourcesection) {
+                $targetsection = $DB->get_record('course_sections', ['course' => $rolloverqueue->targetcourseid, 'section' => $sourcesection->section]);
+                if(!$targetsection){
+                    continue;
+                }
+                if(!in_array($sourcesection->section, $includedsections) && $rolloverqueue->rollovermode == 'previouscourse'){
+                    continue;
+                }
+
+                // Copy section images if course format is grid
+                $sourcecourse = $DB->get_record('course', ['id' => $sourcecourseid]);
+                $courseformat = course_get_format($sourcecourse);
+                if ($courseformat->get_format() == 'grid') {
+                    $sourcesectionid = $sourcesection->id;
+                    $targetsectionid = $targetsection->id;
+                    $sourcecoursecontext = context_course::instance($sourcecourseid);
+                    $targetcoursecontext = context_course::instance($targetcourseid);
+
+                    $format_grid_image = $DB->get_record('format_grid_image', array('sectionid' => $sourcesectionid));
+                    if (!empty($format_grid_image)) {
+                        //
+                        $fs = get_file_storage();
+                        $files = $fs->get_area_files($sourcecoursecontext->id, 'format_grid', 'sectionimage', $sourcesectionid);
+                        foreach ($files as $file) {
+                            if (!$file->is_directory()) {
+
+                                $filerecord = new stdClass();
+                                $filerecord->contextid = $targetcoursecontext->id;
+                                $filerecord->component = 'format_grid';
+                                $filerecord->filearea = 'sectionimage';
+                                $filerecord->itemid = $targetsectionid;
+                                $filerecord->filename = $format_grid_image->image;
+                                // $newfile = $fs->create_file_from_storedfile($filerecord, $file);
+                                $newfile = null;
+                                $existingfile = $fs->get_file($targetcoursecontext->id, 'format_grid', 'sectionimage', $targetsectionid, $file->get_filepath(), $format_grid_image->image);
+                                if($existingfile){
+                                    $newfile = $existingfile;
+                                }
+                                else{
+                                    $newfile = $fs->create_file_from_storedfile($filerecord, $file);
+                                }
+                                if ($newfile) {
+                                    // $DB->set_field('format_grid_image', 'contenthash', $newfile->get_contenthash(), array('sectionid' => $filesectionid));
+                                    $grid_image = $DB->get_record('format_grid_image', array('sectionid' => $targetsectionid));
+                                    if (empty($grid_image)) {
+                                        $grid_image = new \stdClass();
+                                        $grid_image->sectionid = $targetsectionid;
+                                        $grid_image->courseid = $targetcourseid;
+                                        $grid_image->image = $format_grid_image->image;
+                                        $grid_image->displayedimagestate = 0;
+                                        $grid_image->contenthash = $newfile->get_contenthash();
+                                        $newid = $DB->insert_record('format_grid_image', $grid_image);
+                                    } else {
+                                        $grid_image->sectionid = $targetsectionid;
+                                        $grid_image->courseid = $targetcourseid;
+                                        $grid_image->image = $format_grid_image->image;
+                                        $grid_image->displayedimagestate = 0;
+                                        $grid_image->contenthash = $newfile->get_contenthash();
+                                        $newid = $DB->update_record('format_grid_image', $grid_image);
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                } 
             }
             rebuild_course_cache($rolloverqueue->targetcourseid, true);
             if (empty($note)) {
