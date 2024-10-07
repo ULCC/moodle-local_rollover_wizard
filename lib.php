@@ -206,8 +206,8 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
         }
     }
     $enabled = get_config("local_rollover_wizard", "update_internal_link");
-   
     foreach ($rolloverqueues as $rolloverqueue) {
+
         $rolloverqueue = $DB->get_record('local_rollover_wizard_log', ['id' => $rolloverqueue->id]);
         $params = [
             "id"=>$rolloverqueue->sourcecourseid
@@ -226,6 +226,8 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
             }
 
             mtrace('TaskID ' . $rolloverqueue->taskid . ' Started.');
+            
+
             $note = '';
             $rolledovercmids = '';
             $includedsections = [];
@@ -234,19 +236,6 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
             $rolloverqueue->status = ROLLOVER_WIZARD_INPROGRESS;
             $DB->update_record('local_rollover_wizard_log', $rolloverqueue);
 
-
-            if($rolloverqueue->rollovermode == 'previouscourse' && !empty($rolloverqueue->selectedsections)){
-                $checksections = true;
-                $includedsections = json_decode($rolloverqueue->selectedsections);
-            }
-            
-            $targetsections = $DB->get_records_sql("SELECT id, section, name, summary, summaryformat, visible FROM {course_sections} WHERE course = :courseid AND section > 0 ORDER BY section ASC",
-            ['courseid' => $rolloverqueue->targetcourseid]);
-            foreach($targetsections as $targetsection){
-                $originalsections[] = $targetsection->id;
-            }
-            local_rollover_wizard_course_create_sections_if_missing($rolloverqueue->targetcourseid, $rolloverqueue->sourcecourseid, $checksections, $includedsections);
-            
             // 1. Proccess activity section to target course.
             try {
                 // Create backup controller.
@@ -258,37 +247,21 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
                     backup::MODE_IMPORT,
                     $useridrollover
                 );
-                
-                $curexcludedactivitytypes = array_filter($curexcludedactivitytypes, function($activity) {
-                    return strpos($activity, 'coursesettings') === false;
-                });
-                
-                $all_quizzes_excluded = true;
-                foreach ($curexcludedactivitytypes as $activity) {
-                    $quizsetting = $bc->get_plan()->get_setting($activity.'_included');
-                    if ($quizsetting->get_value() == 1) {
-                        $quizsetting->set_value(0);
-                        $quizsetting->set_status(backup_setting::LOCKED_BY_CONFIG);
-                    
-                    }
-
-                
-                    if (strpos($activity, 'quiz') !== false && $quizsetting->get_value() == 1) {
-                        $all_quizzes_excluded = false;
-                    }
-                }
-
-                if ($all_quizzes_excluded) {
-                    $bc->get_plan()->get_setting('questionbank')->set_status(backup_setting::LOCKED_BY_CONFIG);
-                    mtrace("All quizzes have been excluded. Question bank has been locked.");
-                    
-                }
-
                 $settings = $bc->get_plan()->get_settings();
                 foreach ($settings as $setting) {
-                    mtrace("Setting: {$setting->get_name()}, Status: {$setting->get_status()}");
+                    $settingname = $setting->get_name();
+                    $shouldinclude = true;
+                    foreach ($curexcludedactivitytypes as $excludedactivity) {
+                        if (strpos($settingname, $excludedactivity) !== false) {
+                            $shouldinclude = false;
+                            break;
+                        }
+                    }
+                    if (!$shouldinclude) {
+                        $setting->set_value(0);
+                        mtrace("Disabled setting: " . $settingname);
+                    }
                 }
-             
                 // Run plan backup.
                 $bc->execute_plan();
                 $backupid = $bc->get_backupid();
@@ -304,7 +277,10 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
                     backup::TARGET_CURRENT_ADDING
                 );
                 $settings = $rc->get_plan()->get_settings();
-               
+                foreach ($settings as $setting) {
+                    $settingname = $setting->get_name();
+                    mtrace("Restore : ".$settingname);
+                }
                 $rc->execute_precheck();
                 $rc->execute_plan();
                 $rc->destroy();
@@ -445,92 +421,8 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
                     }
                 }
             }
-            $sourcesections = $DB->get_records_sql("SELECT id, section, course, name, summary, summaryformat, visible FROM {course_sections} WHERE course = :courseid ORDER BY section ASC",
-                ['courseid' => $rolloverqueue->sourcecourseid]);
 
-            // Update the name and summary of target sections
-            foreach ($sourcesections as $sourcesection) {
-                $targetsection = $DB->get_record('course_sections', ['course' => $rolloverqueue->targetcourseid, 'section' => $sourcesection->section]);
-                if(!$targetsection){
-                    continue;
-                }
-                if(!in_array($sourcesection->section, $includedsections) && $rolloverqueue->rollovermode == 'previouscourse'){
-                    continue;
-                }
-
-                // Copy section images if course format is grid
-                $sourcecourse = $DB->get_record('course', ['id' => $sourcecourseid]);
-                $courseformat = course_get_format($sourcecourse);
-                if ($courseformat->get_format() == 'grid') {
-                    $sourcesectionid = $sourcesection->id;
-                    $targetsectionid = $targetsection->id;
-                    $sourcecoursecontext = context_course::instance($sourcecourseid);
-                    $targetcoursecontext = context_course::instance($targetcourseid);
-
-                    $format_grid_image = $DB->get_record('format_grid_image', array('sectionid' => $sourcesectionid));
-                    if (!empty($format_grid_image)) {
-                        //
-                        $fs = get_file_storage();
-                        $files = $fs->get_area_files($sourcecoursecontext->id, 'format_grid', 'sectionimage', $sourcesectionid);
-                        foreach ($files as $file) {
-                            if (!$file->is_directory()) {
-                                $filerecord = new stdClass();
-                                $filerecord->contextid = $targetcoursecontext->id;
-                                $filerecord->component = 'format_grid';
-                                $filerecord->filearea = 'sectionimage';
-                                $filerecord->itemid = $targetsectionid;
-                                $filerecord->filename = $format_grid_image->image;
-                                // $newfile = $fs->create_file_from_storedfile($filerecord, $file);
-                                $newfile = null;
-                                $existingfile = $fs->get_file($targetcoursecontext->id, 'format_grid', 'sectionimage', $targetsectionid, $file->get_filepath(), $format_grid_image->image);
-                                if($existingfile){
-                                    $newfile = $existingfile;
-                                }
-                                else{
-                                    $newfile = $fs->create_file_from_storedfile($filerecord, $file);
-                                }
-                                if ($newfile) {
-                                    // $DB->set_field('format_grid_image', 'contenthash', $newfile->get_contenthash(), array('sectionid' => $filesectionid));
-                                    $grid_image = $DB->get_record('format_grid_image', array('sectionid' => $targetsectionid));
-                                    if (empty($grid_image)) {
-                                        $grid_image = new \stdClass();
-                                        $grid_image->sectionid = $targetsectionid;
-                                        $grid_image->courseid = $targetcourseid;
-                                        $grid_image->image = $format_grid_image->image;
-                                        $grid_image->displayedimagestate = 0;
-                                        $grid_image->contenthash = $newfile->get_contenthash();
-                                        mtrace("Grid Image : ".json_encode($grid_image));
-                                        $newid = $DB->insert_record('format_grid_image', $grid_image);
-                                    } else {
-                                        $grid_image->sectionid = $targetsectionid;
-                                        $grid_image->courseid = $targetcourseid;
-                                        $grid_image->image = $format_grid_image->image;
-                                        $grid_image->displayedimagestate = 0;
-                                        $grid_image->contenthash = $newfile->get_contenthash();
-                                        mtrace("Grid Image : ".json_encode($grid_image));
-                                        $newid = $DB->update_record('format_grid_image', $grid_image);
-                                    }
-                                }
-                                break;
-                            }
-                        }
-                    }
-                } 
-            }
-            rebuild_course_cache($rolloverqueue->targetcourseid, true);
-            if (empty($note)) {
-                $rolloverqueue->status = ROLLOVER_WIZARD_SUCCESS;
-            } else {
-                $rolloverqueue->status = ROLLOVER_WIZARD_PARTLYSUCCESS;
-                $rolloverqueue->note = $note;
-            }
-
-            $rolloverqueue->rolledovercmids = $rolledovercmids;
-
-            $DB->update_record('local_rollover_wizard_log', $rolloverqueue);
-        }
-
-        $coursetarget=$DB->get_record("course",["id"=>$targetcourseid],"*",MUST_EXIST);
+             $coursetarget=$DB->get_record("course",["id"=>$targetcourseid],"*",MUST_EXIST);
         $coursecontext = context_course::instance($coursetarget->id);
 
         $fields = 'id, parent, name, contextid';
@@ -575,6 +467,19 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
                 
             }
         }
+            rebuild_course_cache($rolloverqueue->targetcourseid, true);
+            if (empty($note)) {
+                $rolloverqueue->status = ROLLOVER_WIZARD_SUCCESS;
+            } else {
+                $rolloverqueue->status = ROLLOVER_WIZARD_PARTLYSUCCESS;
+                $rolloverqueue->note = $note;
+            }
+
+            $rolloverqueue->rolledovercmids = $rolledovercmids;
+
+            $DB->update_record('local_rollover_wizard_log', $rolloverqueue);
+        }
+
         // End of Rollover Blocks.
         // Purge Caches.
         rebuild_course_cache($rolloverqueue->targetcourseid, true);
@@ -602,27 +507,27 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
  * @param int|array $sections list of relative section numbers to create
  * @return bool if there were any sections created
  */
-function local_rollover_wizard_course_create_sections_if_missing($targetcourseid, $sourcecourseid, $checksections = false ,$included = []) {
-    
+function local_rollover_wizard_course_create_sections_if_missing(
+  $targetcourseid,
+  $sourcecourseid,
+  $checksections = false ,
+  $included = [] ) {
+
     $sections = array_keys(get_fast_modinfo($sourcecourseid)->get_section_info_all());
     if (!is_array($sections)) {
-        $sections = array($sections);
+        $sections = [$sections];
     }
-    $original_sections = get_fast_modinfo($sourcecourseid)->get_section_info_all();
+    $originalsections = get_fast_modinfo($sourcecourseid)->get_section_info_all();
     $existing = array_keys(get_fast_modinfo($targetcourseid)->get_section_info_all());
     if ($newsections = array_diff($sections, $existing)) {
         foreach ($newsections as $sectionnum) {
-            // if($checksections && !in_array($sectionnum, $included)){
-            //     continue;
-            // }
-            $original_section = $original_sections[$sectionnum];
-            local_rollover_wizard_course_create_section($targetcourseid, $sectionnum, true, $original_section->visible);
+            $originalsection = $originalsections[$sectionnum];
+            local_rollover_wizard_course_create_section($targetcourseid, $sectionnum, true, $originalsection->visible);
         }
         return true;
     }
     return false;
 }
-
 
 /**
  * Rewrites the summary for a course during the rollover wizard.
@@ -911,8 +816,6 @@ function local_rollover_wizard_course_create_section($courseorid, $position = 0,
     rebuild_course_cache($courseid, true);
     return $cw;
 }
-
-
 
 /**
  * Checks if a course should be processed by a cron task during the rollover wizard.
