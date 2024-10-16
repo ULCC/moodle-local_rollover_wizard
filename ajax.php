@@ -328,7 +328,7 @@ if (confirm_sesskey()) {
                     $html .= ' data-section="'.$section->section.'" name="rollover-wizard-cm[]" data-module="coursesections"';
                     $html .= ' data-section="'.$section->section.'" type="checkbox" value="'.$section->section.'" data-id="'.$section->id.'"></div>';
                     $html .= '<div style="flex-grow:1;cursor:pointer;" data-toggle="collapse"';
-                    $html .= ' data-target="#collapsecontainer'.$iteration.'"><b>'.get_section_name($sourcecourse->id, $section->section)."</b></div>";
+                    $html .= ' data-target="#collapsecontainer'.$iteration.'"><b>'.get_section_name($sourcecourse->id, $section->section)."</b><span class='badge badge-pill badge-warning ml-2'>Hidden from students</span></div>";
                     $html .= '<i class="collapse-toggle" style="cursor:pointer;" data-toggle="collapse" data-target="#collapsecontainer'.$iteration.'"></i>';
                     $html .= '</div>';
                     $html .= '</div>';
@@ -512,7 +512,7 @@ if (confirm_sesskey()) {
                     }
                     $sequence = $section->sequence;
                     $html .= '<tr>';
-                    $html .= '<td colspan="2"><b>'.get_section_name($sourcecourse->id, $section->section)."</b></td>";
+                    $html .= '<td colspan="2"><b>'.get_section_name($sourcecourse->id, $section->section)."</b><span class='badge badge-pill badge-warning ml-2'>Hidden from students</span></td>";
                     $html .= '</tr>';
                     $cmids = explode(',', $sequence);
                     foreach ($cmids as $cmid) {

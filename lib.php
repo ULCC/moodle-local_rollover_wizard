@@ -296,9 +296,8 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
 
         
             // 2. Proccess Check link to source course
-            if (!$enabled) {
-                local_rollover_wizard_update_internal_links($rolloverqueue);
-            }
+            local_rollover_wizard_update_internal_links($rolloverqueue,$enabled);
+            
             // 3. Proccess import course setting to target course.
             $cmids = json_decode($rolloverqueue->cmids);
             foreach ($cmids as $cmid) {
@@ -925,7 +924,7 @@ function local_rollover_wizard_get_htmlblocks_by_course($courseid) {
  * @param stdClass $rolloverqueue The rollover queue data object.
  * @return void
  */
-function local_rollover_wizard_update_internal_links($rolloverqueue) {
+function local_rollover_wizard_update_internal_links($rolloverqueue,$enabled) {
     global $DB;
     if ($rolloverqueue->rollovermode == 'previouscourse' && !empty($rolloverqueue->selectedsections)) {
         $includedsections = json_decode($rolloverqueue->selectedsections);
@@ -949,9 +948,11 @@ function local_rollover_wizard_update_internal_links($rolloverqueue) {
         if (!in_array($sourcesection->section, $includedsections) && $rolloverqueue->rollovermode == 'previouscourse') {
             continue;
         }
+        if(!$enabled){
+            $targetsection->summary = local_rollover_wizard_rewrite_summary($sourcesection, $targetsection);
+            $targetsection->summaryformat = $sourcesection->summaryformat;
+        }
         $targetsection->name = $sourcesection->name;
-        $targetsection->summary = local_rollover_wizard_rewrite_summary($sourcesection, $targetsection);
-        $targetsection->summaryformat = $sourcesection->summaryformat;
         $targetsection->visible = $sourcesection->visible;
         $targetsection->timemodified = time();
         $DB->update_record('course_sections', $targetsection);
