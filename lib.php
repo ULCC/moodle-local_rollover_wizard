@@ -929,11 +929,19 @@ function local_rollover_wizard_update_internal_links($rolloverqueue,$enabled) {
     if ($rolloverqueue->rollovermode == 'previouscourse' && !empty($rolloverqueue->selectedsections)) {
         $includedsections = json_decode($rolloverqueue->selectedsections);
     }
+    if ($rolloverqueue->rollovermode == 'blanktemplate' && !empty($rolloverqueue->selectedsections)) {
+        $includedsections = json_decode($rolloverqueue->selectedsections);
+    }
+    
     $sql = "SELECT id, section, course, name, summary, summaryformat, visible FROM {course_sections} ";
     $sql .= "WHERE course = :courseid ORDER BY section ASC";
     $params = [
     'courseid' => $rolloverqueue->sourcecourseid,
     ];
+
+    $sourcecourseid = $rolloverqueue->sourcecourseid;
+    $targetcourseid = $rolloverqueue->targetcourseid;
+
     $sourcesections = $DB->get_records_sql($sql, $params);
     // Update the name and summary of target sections.
     foreach ($sourcesections as $sourcesection) {
@@ -956,6 +964,65 @@ function local_rollover_wizard_update_internal_links($rolloverqueue,$enabled) {
         $targetsection->visible = $sourcesection->visible;
         $targetsection->timemodified = time();
         $DB->update_record('course_sections', $targetsection);
+    
+          // Copy section images if course format is grid
+          $sourcecourse = $DB->get_record('course', ['id' => $sourcecourseid]);
+          $courseformat = course_get_format($sourcecourse);
+
+          if ($courseformat->get_format() == 'grid') {
+              $sourcesectionid = $sourcesection->id;
+              $targetsectionid = $targetsection->id;
+              $sourcecoursecontext = context_course::instance($sourcecourseid);
+              $targetcoursecontext = context_course::instance($targetcourseid);
+
+              $format_grid_image = $DB->get_record('format_grid_image', array('sectionid' => $sourcesectionid));
+              if (!empty($format_grid_image)) {
+                  //
+                  $fs = get_file_storage();
+                  $files = $fs->get_area_files($sourcecoursecontext->id, 'format_grid', 'sectionimage', $sourcesectionid);
+                  foreach ($files as $file) {
+                      if (!$file->is_directory()) {
+                          $filerecord = new stdClass();
+                          $filerecord->contextid = $targetcoursecontext->id;
+                          $filerecord->component = 'format_grid';
+                          $filerecord->filearea = 'sectionimage';
+                          $filerecord->itemid = $targetsectionid;
+                          $filerecord->filename = $format_grid_image->image;
+                          // $newfile = $fs->create_file_from_storedfile($filerecord, $file);
+                          $newfile = null;
+                          $existingfile = $fs->get_file($targetcoursecontext->id, 'format_grid', 'sectionimage', $targetsectionid, $file->get_filepath(), $format_grid_image->image);
+                          if($existingfile){
+                              $newfile = $existingfile;
+                          }
+                          else{
+                              $newfile = $fs->create_file_from_storedfile($filerecord, $file);
+                          }
+                          if ($newfile) {
+                              // $DB->set_field('format_grid_image', 'contenthash', $newfile->get_contenthash(), array('sectionid' => $filesectionid));
+                              $grid_image = $DB->get_record('format_grid_image', array('sectionid' => $targetsectionid));
+                              if (empty($grid_image)) {
+                                  $grid_image = new \stdClass();
+                                  $grid_image->sectionid = $targetsectionid;
+                                  $grid_image->courseid = $targetcourseid;
+                                  $grid_image->image = $format_grid_image->image;
+                                  $grid_image->displayedimagestate = 0;
+                                  $grid_image->contenthash = $newfile->get_contenthash();
+                                  $newid = $DB->insert_record('format_grid_image', $grid_image);
+                              } else {
+                                  $grid_image->sectionid = $targetsectionid;
+                                  $grid_image->courseid = $targetcourseid;
+                                  $grid_image->image = $format_grid_image->image;
+                                  $grid_image->displayedimagestate = 0;
+                                  $grid_image->contenthash = $newfile->get_contenthash();
+                                  $newid = $DB->update_record('format_grid_image', $grid_image);
+                              }
+                          }
+                          break;
+                      }
+                  }
+              }
+          }
+    
     }
 }
 

@@ -23,6 +23,8 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
     var data_key = null;
     var hasruntask = false;
     let activity_non_selected = [];
+    let sectionblank = [];
+    let excludeactivityblank = [];
     $(document).ready(function () {
         var promise = ajax('retrievesessiondata');
         promise.then(function (result) {
@@ -170,6 +172,9 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
                     if (result.status == 200) {
                         var data = result.data;
                         content += data.html;
+                        const { section, excludeactivity } = data;
+                        excludeactivityblank = excludeactivity;
+                        sectionblank=section;
                         modalShow(content);
                     }
                 }
@@ -394,6 +399,32 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
             if (rollover_process_mode == 'cron') {
                 // alert('Cron Process');
             }
+            wizard_selected_activity = [];
+            activity_non_selected = [];
+            $('input[name="rollover-wizard-cm[]"]').each(function (index, item) {
+                var checked = $(this).prop('checked');
+                var key = $(this).data('module');
+                var section = $(this).data('section');
+                var idsection = $(this).data("id");
+                var value = $(this).val();
+                if (checked) {
+                    wizard_selected_activity.push({
+                        key: key,
+                        value: value,
+                        section: section,
+                        id: idsection,
+                    });
+                }
+
+                if (!checked) {
+                    activity_non_selected.push({
+                        key: key,
+                        value: value,
+                        id: idsection
+                    })
+                }
+            });
+
 
             if (wizard_mode == 'blanktemplate') {
 
@@ -571,18 +602,22 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
                                 let parseToArray = [];
                                 let NonSelectedSection = [];
 
-                                for (var index = 0; index < activity_non_selected.length; index++) {
-                                    if (activity_non_selected[index].key === 'coursesections') {
-                                        activity_non_selected[index].key = "section";
-                                        parseToArray.push(activity_non_selected[index].key + "_" + activity_non_selected[index].id);
-                                        NonSelectedSection.push(activity_non_selected[index].value);
-                                    } else {
-                                        parseToArray.push(activity_non_selected[index].key + "_" + activity_non_selected[index].value);
+                                let dataAjax = {}
+                                if (wizard_mode === 'previouscourse') {
+                                    for (var index = 0; index < activity_non_selected.length; index++) {
+                                        if (activity_non_selected[index].key === 'coursesections') {
+                                            activity_non_selected[index].key = "section";
+                                            parseToArray.push(activity_non_selected[index].key + "_" + activity_non_selected[index].id);
+                                            NonSelectedSection.push(activity_non_selected[index].value);
+                                        } else {
+                                            parseToArray.push(activity_non_selected[index].key + "_" + activity_non_selected[index].value);
+                                        }
                                     }
+                                    dataAjax = { mode: wizard_mode, activity: JSON.stringify(parseToArray), nonsection: JSON.stringify(NonSelectedSection), section: null };
+                                } else {
+                                    dataAjax = { mode: wizard_mode, activity: JSON.stringify(excludeactivityblank), nonsection: JSON.stringify(NonSelectedSection), section: JSON.stringify(sectionblank)};
                                 }
-
-
-                                var promise = ajax('startrollover', { mode: wizard_mode, activity: JSON.stringify(parseToArray), nonsection: JSON.stringify(NonSelectedSection) });
+                                var promise = ajax('startrollover', dataAjax);
                                 promise.then(function (result) {
                                     if (result.length != 0) {
                                         var result = JSON.parse(result);

@@ -334,8 +334,9 @@ if (confirm_sesskey()) {
                     if (!$section->visible) {
                         $html .= "<span class='badge badge-pill badge-warning ml-2'>Hidden from students</span>";
                     }
-                    $html .= '</div>';
 
+                    $html .='</div>';
+                   
                     $html .= '<i class="collapse-toggle" style="cursor:pointer;" data-toggle="collapse" data-target="#collapsecontainer'.$iteration.'"></i>';
                     $html .= '</div>';
                     $html .= '</div>';
@@ -599,6 +600,7 @@ if (confirm_sesskey()) {
             }
             if ($mode == 'blanktemplate') {
                 $sessiondata = $_SESSION['local_rollover_wizard'][$datakey];
+
                 $targetcourse = $sessiondata['target_course'];
                 $html = '<h2 class="text-center">Import a blank template</h2>'
                 .'<p></p>'
@@ -645,10 +647,17 @@ if (confirm_sesskey()) {
 
                 $excludedactivitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
                 $excludedactivitytypes = array_map('trim', $excludedactivitytypes);
+                $selectactivity=[];
+                $selectedsections=[];
                 foreach ($coursesections as $section) {
                     $sequence = $section->sequence;
+                    $selectedsections[]=$section->section;
                     $html .= '<tr>';
-                    $html .= '<td colspan="2"><b>'.get_section_name($sourcecourse->id, $section->section)."</b></td>";
+                    $html .= '<td colspan="2"><b>'.get_section_name($sourcecourse->id, $section->section)."</b>";
+                    if (!$section->visible) {
+                        $html .= "<span class='badge badge-pill badge-warning ml-2'>Hidden from students</span>";
+                    }
+                    $html .='</td>';
                     $html .= '</tr>';
                     $cmids = explode(',', $sequence);
                     foreach ($cmids as $cmid) {
@@ -668,6 +677,9 @@ if (confirm_sesskey()) {
                                 $disabled = true;
                                 $disabledattr = "disabled";
                                 $disabledstyle = "opacity: 50%;";
+                              $selectactivity[]=[
+                                "activity"=>$modulerecord->name."_".$cm->id,
+                              ];
                             }
                             $modshortname = $modulerecord->name;
                             $modfullname = get_string('pluginname', $modshortname);
@@ -720,7 +732,8 @@ if (confirm_sesskey()) {
                     $html .= '<input type="hidden" id="rollover_process_mode" value="instantexecute">';
                 }
 
-                display_result(200, ['html' => $html]);
+                
+                display_result(200, ['html' => $html,"excludeactivity"=>$selectactivity,"section"=>$selectedsections]);
             }
         }
 
@@ -843,6 +856,7 @@ if (confirm_sesskey()) {
         $datakey = required_param('data_key', PARAM_INT);
         $activity = required_param("activity", PARAM_TEXT);
         $section = required_param("nonsection",PARAM_TEXT);
+        $blanksections=required_param("section",PARAM_TEXT);
         $excludedactivitytypes = (empty(trim($activity))) ? [] : json_decode($activity);
         $sessiondata = $_SESSION['local_rollover_wizard'][$datakey];
         $targetcourse = $sessiondata['target_course'];
@@ -851,14 +865,21 @@ if (confirm_sesskey()) {
         $selectedsections = null;
         if ($mode == 'blanktemplate') {
 
-            if (!empty($sessiondata['import_course_setting']) && $sessiondata['import_course_setting'] == true) {
-                $cmids[] = 'coursesettings';
+            if(!empty($sessiondata["import_course_setting"]) || ($sessiondata["import_course_setting"]===true)){
+                $cmids[]="coursesettings";
+            }
+
+            foreach ($excludedactivitytypes as $key => $value) {
+                $excludedactivitytypes[$key]=$value->activity;
             }
             $selectedactivity = $DB->get_records('course_modules', ['course' => $sourcecourse->id]);
             foreach ($selectedactivity as $activity) {
                 $cmids[] = $activity->id;
             }
+            $selectedsections=json_decode($blanksections);
         }
+
+       
         if ($mode == 'previouscourse') {
             $selectedactivity = $sessiondata['selected_activity'];
             $cmids = [];
@@ -882,6 +903,7 @@ if (confirm_sesskey()) {
             $instantexecute = 0;
         }
 
+        
         $excludesection = json_decode($section);
         $taskid = time();
         $newrollover = new \stdClass();
@@ -900,6 +922,7 @@ if (confirm_sesskey()) {
         $newrollover->excludedactivitytypes = json_encode($excludedactivitytypes);
         $newrollover->timecreated = time();
         $newrollover->timeupdated = time();
+        
         $DB->insert_record('local_rollover_wizard_log', $newrollover);
        
         if (!$iscron) {
