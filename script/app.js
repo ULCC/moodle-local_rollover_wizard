@@ -399,33 +399,6 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
             if (rollover_process_mode == 'cron') {
                 // alert('Cron Process');
             }
-            wizard_selected_activity = [];
-            activity_non_selected = [];
-            $('input[name="rollover-wizard-cm[]"]').each(function (index, item) {
-                var checked = $(this).prop('checked');
-                var key = $(this).data('module');
-                var section = $(this).data('section');
-                var idsection = $(this).data("id");
-                var value = $(this).val();
-                if (checked) {
-                    wizard_selected_activity.push({
-                        key: key,
-                        value: value,
-                        section: section,
-                        id: idsection,
-                    });
-                }
-
-                if (!checked) {
-                    activity_non_selected.push({
-                        key: key,
-                        value: value,
-                        id: idsection
-                    })
-                }
-            });
-
-
             if (wizard_mode == 'blanktemplate') {
 
                 wizard_selected_activity = [];
@@ -613,6 +586,8 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
                                             parseToArray.push(activity_non_selected[index].key + "_" + activity_non_selected[index].value);
                                         }
                                     }
+                                    console.info(activity_non_selected);
+                                    
                                     dataAjax = { mode: wizard_mode, activity: JSON.stringify(parseToArray), nonsection: JSON.stringify(NonSelectedSection), section: null };
                                 } else {
                                     dataAjax = { mode: wizard_mode, activity: JSON.stringify(excludeactivityblank), nonsection: JSON.stringify(NonSelectedSection), section: JSON.stringify(sectionblank)};
