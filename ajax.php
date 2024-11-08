@@ -27,6 +27,8 @@
  */
 
 require_once('../../config.php');
+require_once($CFG->libdir.'/gradelib.php');
+require_once($CFG->dirroot.'/mod/quiz/locallib.php');
 require_once($CFG->dirroot . '/course/lib.php');
 require_once($CFG->dirroot . '/local/rollover_wizard/lib.php');
 require_once($CFG->dirroot . '/lib/formslib.php');
@@ -319,6 +321,7 @@ if (confirm_sesskey()) {
              
                 $excludedactivitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
                 $excludedactivitytypes = array_map('trim', $excludedactivitytypes);
+              
                 foreach ($coursesections as $section) {
                     $sequence = $section->sequence;
                     $html .= '<div class="card">';
@@ -347,6 +350,10 @@ if (confirm_sesskey()) {
                         $cm = $DB->get_record('course_modules', ['id' => $cmid]);
                         if ($cm && $cm->deletioninprogress < 1) {
                             $modulerecord = $DB->get_record('modules', ['id' => $cm->module]);
+                           
+                            if($modulerecord->name==='quiz'){
+                                $quizobj = quiz::create($cm->instance, $USER->id);
+                            }
                             if (!$modulerecord) {
                                 continue;
                             }
@@ -922,7 +929,6 @@ if (confirm_sesskey()) {
         $newrollover->excludedactivitytypes = json_encode($excludedactivitytypes);
         $newrollover->timecreated = time();
         $newrollover->timeupdated = time();
-        
         $DB->insert_record('local_rollover_wizard_log', $newrollover);
        
         if (!$iscron) {

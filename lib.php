@@ -36,6 +36,7 @@
 
  require_once($CFG->dirroot . '/course/lib.php');
  require_once($CFG->dirroot . '/lib/blocklib.php');
+ require_once($CFG->dirroot . '/mod/quiz/locallib.php');
  require_once($CFG->dirroot . '/backup/util/includes/restore_includes.php');
  require_once($CFG->dirroot . '/backup/util/includes/backup_includes.php');
 
@@ -421,9 +422,23 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
                 }
             }
 
-             $coursetarget=$DB->get_record("course",["id"=>$targetcourseid],"*",MUST_EXIST);
+        $coursetarget=$DB->get_record("course",["id"=>$targetcourseid],"*",MUST_EXIST);
         $coursecontext = context_course::instance($coursetarget->id);
 
+        // Get mod quiz from target course
+        $quizzes = $DB->get_records('quiz', array('course' => $coursetarget->id));
+        foreach ($quizzes as $q) {
+            $cm = get_coursemodule_from_instance('quiz', $q->id, $q->course, false, MUST_EXIST);
+            $quizobjs = new quiz($q, $cm, $coursetarget);
+            $slots[]=$quizobjs->get_structure()->get_slots();
+            foreach ($quizobjs->get_structure()->get_slots() as $key => $value) {
+               $category_quiz[]=$value->category;
+            }
+        }
+        
+        if($category_quiz){
+            $new_category=array_unique($category_quiz);
+        }
         $fields = 'id, parent, name, contextid';
         if ($categories = $DB->get_records('question_categories', ['contextid' => $coursecontext->id], 'parent', $fields)) {
             $categories = sort_categories_by_tree($categories);
@@ -447,7 +462,7 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
                 $result=$DB->get_records_sql($sql,["contextid"=>$contextidcategory[0]]);
                 $all_zero_usage = true; 
                 $categoryidremove = [];
-                
+               
                 foreach ($result as $entry) {
                     if ($entry->usage_count > 0) {
                         $all_zero_usage = false; 
@@ -455,14 +470,27 @@ function local_rollover_wizard_executerollover($mode = 1,$taskid=0) {
                     }
                     $categoryidremove[] = $entry->questioncategoryid;
                 }
-                if ($all_zero_usage) {
-                    if (!empty($categoryidremove)) {
-                        foreach ($categoryidremove as $categoryid) {
-                            $DB->delete_records("question_bank_entries", ["questioncategoryid" => $categoryid]);
-                            $DB->delete_records("question_categories", ["id" => $categoryid]);
+                mtrace(json_encode($quizzes));
+                mtrace(json_encode($new_category));
+                mtrace(json_encode($categoryidremove));
+                
+                    if ($all_zero_usage) {
+                        if (!empty($categoryidremove)) {
+                            foreach ($categoryidremove as $categoryid) {
+                                if(empty($quizzes)){
+                                    $DB->delete_records("question_bank_entries", ["questioncategoryid" => $categoryid]);
+                                    $DB->delete_records("question_categories", ["id" => $categoryid]);
+                                }
+                                if(!empty($new_category)){
+                                    if (!in_array($categoryid, $new_category)) {                
+                                        $DB->delete_records("question_bank_entries", ["questioncategoryid" => $categoryid]);
+                                        $DB->delete_records("question_categories", ["id" => $categoryid]);
+                                    }
+                                }
+                            }
                         }
                     }
-                }
+                
                 
             }
         }
