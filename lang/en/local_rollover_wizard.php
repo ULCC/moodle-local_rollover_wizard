@@ -45,3 +45,7 @@ $string['cron_schedulling_description'] = 'Tick this checkbox to enable cron sch
 
 $string["config:enable_link"] = "Update Internal Links";
 $string["config:enable_link:desc"] = "Check this box to update internal and embedded links so that they point to the target course. If left unchecked, the links will remain pointing to the source course";
+
+
+$string["setting_page:limit_question"]="Question threshold for scheduled run";
+$string["setting_page:limit_question:desc"]="The question limit for the scheduled run must be set to ensure optimal performance";

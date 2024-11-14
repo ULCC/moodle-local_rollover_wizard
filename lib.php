@@ -461,9 +461,9 @@ function local_rollover_wizard_executerollover($mode = 1, $taskid = 0)
                 }
             }
 
-                $coursetarget = $DB->get_record("course", ["id" => $targetcourseid], "*", MUST_EXIST);
-                $coursecontext = context_course::instance($coursetarget->id);
-                local_rollover_wizard_check_question_bank($coursetarget,$coursecontext);
+                // $coursetarget = $DB->get_record("course", ["id" => $targetcourseid], "*", MUST_EXIST);
+                // $coursecontext = context_course::instance($coursetarget->id);
+                // local_rollover_wizard_check_question_bank($coursetarget,$coursecontext);
 
         
             rebuild_course_cache($rolloverqueue->targetcourseid, true);
@@ -915,11 +915,34 @@ function local_rollover_wizard_is_crontask($courseid)
         $iscron = false;
         $coursesize = $DB->get_record('rollover_wizard_coursesize', ['courseid' => $courseid]);
         if ($coursesize) {
-
             $maxfilesize = $setting->cron_size_threshold * 1024 ** 3;
             $iscron = ((int) $coursesize->size) >= $maxfilesize;
         }
+       
     }
+   
+    return $iscron;
+}
+
+
+/**
+ * Checks if a course should be processed by a cron task during the rollover wizard.
+ *
+ * Determines if the course size exceeds the configured threshold for cron processing.
+ *
+ * @param int $courseid The ID of the course to check.
+ * @return bool True if the course should be processed by cron, false otherwise.
+ */
+function local_rollover_wizard_is_limit_question($courseid)
+{
+    global $DB;
+    $setting = get_config('local_rollover_wizard');
+    $course=$DB->get_record("course",["id"=>$courseid]);
+    $limitquestionbank = (int)($setting->cron_limit_question);
+    list($totalquestionbank,$questionbank)=local_rollover_wizard_check_total_question_bank_course($course);   
+    $iscron = false;
+    if($totalquestionbank>=$limitquestionbank) $iscron = true;
+   
     return $iscron;
 }
 
@@ -1126,4 +1149,37 @@ function get_activities_by_section($sectionid)
     global $DB;
     $contents = $DB->get_records_sql("SELECT * FROM {course_modules} WHERE section = :sectionid", ['sectionid' => $sectionid]);
     return $contents;
+}
+
+function local_rollover_wizard_check_total_question_bank_course($course)
+{
+    global $DB;
+    $sql="
+    SELECT c.id AS category_id,
+        c.name AS category_name,ctx.instanceid,
+        (SELECT COUNT(1)
+        FROM {question} q
+        JOIN {question_versions} qv ON qv.questionid = q.id
+        JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
+        WHERE q.parent = 0  -- Hanya pertanyaan top-level
+            AND qbe.questioncategoryid = c.id 
+            AND qv.status = 'ready' 
+            AND qv.version = (
+                SELECT MAX(v.version)
+                FROM mdl_question_versions v
+                WHERE v.questionid = q.id
+            )
+            ) AS questioncount
+            FROM mdl_question_categories c
+            JOIN mdl_context ctx ON ctx.id = c.contextid  
+            JOIN mdl_course co ON co.id = ctx.instanceid  
+            WHERE co.id = :id
+            ORDER BY c.name;
+        ";
+    $questions=$DB->get_records_sql($sql,["id"=>$course->id]);
+    $totalquestion = 0;
+    if ($questions){
+        $totalquestion = array_sum(array_column($questions, 'questioncount'));    
+    }
+    return [$totalquestion,$questions];
 }

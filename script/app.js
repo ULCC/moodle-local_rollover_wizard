@@ -26,6 +26,7 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
     let module_quiz = 0;
     let sectionblank = [];
     let excludeactivityblank = [];
+    var updatemode = false;
     $(document).ready(function () {
         var promise = ajax('retrievesessiondata');
         promise.then(function (result) {
@@ -183,7 +184,7 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
         }
         if (wizard_step == 5) {
             var content = '';
-            var promise = ajax('renderform', { step: wizard_step, mode: wizard_mode });
+            var promise = ajax('renderform', { step: wizard_step, mode: wizard_mode,quiz:updatemode });
             promise.then(function (result) {
                 if (result.length != 0) {
                     var result = JSON.parse(result);
@@ -333,6 +334,8 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
             return;
         }
         if (wizard_step == 3) {
+            updatemode = false;
+            module_quiz = 0;
             if (wizard_mode == 'previouscourse') {
                 wizard_selected_activity = [];
                 activity_non_selected = [];
@@ -341,7 +344,6 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
                     var key = $(this).data('module');
                     var section = $(this).data('section');
                     var idsection = $(this).data("id");
-                    console.info(item);
                     var value = $(this).val();
                     if (checked) {
                         wizard_selected_activity.push({
@@ -371,11 +373,14 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
                     return;
                 }
                 var data = JSON.stringify(wizard_selected_activity);
-                var promise = ajax('saveselectedactivity', { selectedactivity: data, nonselected: JSON.stringify(activity_non_selected) });
+                var promise = ajax('saveselectedactivity', { selectedactivity: data, nonselected: JSON.stringify(activity_non_selected),mode:1 });
                 promise.then(function (result) {
                     if (result.length != 0) {
-                        var result = JSON.parse(result);
-                        if (result.status == 200) {
+                        var res = JSON.parse(result);
+                        if (res.status == 200) {
+                            if (res.data.quiz) {
+                                updatemode = true;
+                            }
                             wizard_step++;
                             modalChangeView();
                         }
@@ -398,6 +403,9 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
         }
         if (wizard_step == 4) {
             var rollover_process_mode = $('#rollover_process_mode').val();
+            if (updatemode) {
+                rollover_process_mode = 'cron';
+            }
             if (rollover_process_mode == 'instantexecute') {
                 // modalConfirmProcess();
             }
@@ -416,18 +424,19 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
                         wizard_selected_activity.push({
                             key: key,
                             value: value,
-                            section: section
+                            section: section,
+                            
                         });
                     }
                 });
 
                 var data = JSON.stringify(wizard_selected_activity);
-                var promise = ajax('saveselectedactivity', { selectedactivity: data });
+                var promise = ajax('saveselectedactivity', { selectedactivity: data,mode:2});
                 promise.then(function (result) {
                     if (result.length != 0) {
                         var result = JSON.parse(result);
                         if (result.status == 200) {
-
+                            updatemode = true;
                             modalConfirmProcess(rollover_process_mode);
                         }
                     }
@@ -544,7 +553,10 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
         var html_body = '';
         html_body += "<div class='container' id='container-notif'>";
 
-        var promise = ajax('retrieveconfirmdialog', { mode: rollover_process_mode });
+        if (updatemode) {
+            rollover_process_mode = 'cron';
+        }
+        var promise = ajax('retrieveconfirmdialog', { mode: rollover_process_mode, quiz: updatemode });
         promise.then(function (result) {
             if (result.length != 0) {
                 var result = JSON.parse(result);
@@ -591,11 +603,11 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
                                             parseToArray.push(activity_non_selected[index].key + "_" + activity_non_selected[index].value);
                                         }
                                     }
-                                    dataAjax = { mode: wizard_mode, activity: JSON.stringify(parseToArray), nonsection: JSON.stringify(NonSelectedSection), section: null,quiz:module_quiz };
+                                    dataAjax = { mode: wizard_mode, activity: JSON.stringify(parseToArray), nonsection: JSON.stringify(NonSelectedSection), section: null, quiz: module_quiz };
                                 } else {
-                                    dataAjax = { mode: wizard_mode, activity: JSON.stringify(excludeactivityblank), nonsection: JSON.stringify(NonSelectedSection), section: JSON.stringify(sectionblank),quiz:module_quiz};
+                                    dataAjax = { mode: wizard_mode, activity: JSON.stringify(excludeactivityblank), nonsection: JSON.stringify(NonSelectedSection), section: JSON.stringify(sectionblank), quiz: module_quiz };
                                 }
-                              
+
                                 var promise = ajax('startrollover', dataAjax);
                                 promise.then(function (result) {
                                     if (result.length != 0) {
@@ -888,6 +900,7 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
                                             if (wizard_step == 3 && wizard_mode == 'previouscourse') {
                                                 $(main_modal.getRoot()).find('#rollover-activity-container').removeClass('hide');
                                                 $(main_modal.getRoot()).find('#rollover-activity-container').addClass('show');
+                                                
                                                 callback = function () {
                                                     modalChangeView();
                                                 }

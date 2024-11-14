@@ -87,6 +87,23 @@ if ($hassiteconfig) {
                                 '', 1, $choices);
     $settings->add($element);
 
+    $limit = [
+                500 =>"500",
+                1000 => "1000",
+                2000 => "2000",
+                3000 => "3000",
+                4000 => "4000",
+                5000 => "5000",
+                10000 => "10000",
+                15000 => "15000",
+                20000 => "20000",
+            ];
+    $element = new admin_setting_configselect('local_rollover_wizard/cron_limit_question',
+     get_string("setting_page:limit_question","local_rollover_wizard"),
+                                "",
+        500, $limit);
+    $settings->add($element);
+
 
     $element = new admin_setting_configtextarea('local_rollover_wizard/activities_notberolled', 'Activities not to be rolled over',
                                 'Put in activity types separated by commas. Ex: turnitin,forum', null, PARAM_TEXT, '20', '8');

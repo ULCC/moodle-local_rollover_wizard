@@ -27,8 +27,8 @@
  */
 
 require_once('../../config.php');
-require_once($CFG->libdir.'/gradelib.php');
-require_once($CFG->dirroot.'/mod/quiz/locallib.php');
+require_once($CFG->libdir . '/gradelib.php');
+require_once($CFG->dirroot . '/mod/quiz/locallib.php');
 require_once($CFG->dirroot . '/course/lib.php');
 require_once($CFG->dirroot . '/local/rollover_wizard/lib.php');
 require_once($CFG->dirroot . '/lib/formslib.php');
@@ -51,7 +51,8 @@ if (!isloggedin()) {
  * @param mixed $data The data to be included in the response. Can be any data type.
  * @return void
  */
-function display_result($status = 200, $data) {
+function display_result($status = 200, $data)
+{
     echo json_encode([
         'status' => 200,
         'data' => $data,
@@ -67,7 +68,7 @@ if (confirm_sesskey()) {
         $setting = get_config('local_rollover_wizard');
         $step = required_param('step', PARAM_INT);
         if ($step == 1) {
-            $html = '<h2>'.get_string('importcourse', 'local_rollover_wizard').'</h2>'.'';
+            $html = '<h2>' . get_string('importcourse', 'local_rollover_wizard') . '</h2>' . '';
             $html .= '<p>Do you want to start from a blank template or import content from a previous course ?</p>';
             $warning = local_rollover_wizard_verify_course(
                 null,
@@ -75,9 +76,9 @@ if (confirm_sesskey()) {
                 false
             );
             if (!empty($warning) && $warning !== '&nbsp;') {
-                $warning = "<div class='alert alert-warning'>".$warning."</div>";
+                $warning = "<div class='alert alert-warning'>" . $warning . "</div>";
             }
-            $html .= '<div class="alert-container">'.$warning.'</div>';
+            $html .= '<div class="alert-container">' . $warning . '</div>';
             $html .= '<div class="form-group row  fitem">';
             $html .= '  <div class="col-md-3 col-form-label pb-0 pt-0">';
             $html .= '  </div>';
@@ -116,7 +117,7 @@ if (confirm_sesskey()) {
                 $sessiondata = $_SESSION['local_rollover_wizard'][$datakey];
                 $targetcourse = $sessiondata['target_course'];
                 $html = '<h2 class="text-center">Import from previous course</h2>'
-                .'<p></p>';
+                    . '<p></p>';
                 $html .= '<div class="alert-container"></div>';
                 $html .= "<div class='row text-center'>";
 
@@ -179,7 +180,7 @@ if (confirm_sesskey()) {
                     $sourcecoursehtml = "
                     <h6>Previous Course you were enrolled in : </h6>
                     <div>
-                    <a href='".$viewurl->out()."' class='previewcourse_source_course_link' target='_blank' data-courseid='".$sourcecourse->id."'>".$sourcecourse->fullname."</a>
+                    <a href='" . $viewurl->out() . "' class='previewcourse_source_course_link' target='_blank' data-courseid='" . $sourcecourse->id . "'>" . $sourcecourse->fullname . "</a>
                     &nbsp;
                     <i class='fa fa-pencil changecoursebutton' style='cursor:pointer;'></i>
                     </div>";
@@ -193,7 +194,7 @@ if (confirm_sesskey()) {
                 $html .= "</div></div>";
                 // Target Course.
                 $html .= "<div class='col-5'><div class='d-flex flex-column justify-content-center'>";
-                $html .= "<h6>This Course : </h6>".$targetcourse->fullname;
+                $html .= "<h6>This Course : </h6>" . $targetcourse->fullname;
                 $html .= "</div></div>";
                 $html .= "</div>";
                 display_result(200, ['html' => $html]);
@@ -203,7 +204,7 @@ if (confirm_sesskey()) {
                 $sessiondata = $_SESSION['local_rollover_wizard'][$datakey];
                 $targetcourse = $sessiondata['target_course'];
                 $html = '<h2 class="text-center">Import a blank template</h2>'
-                .'<p></p>';
+                    . '<p></p>';
                 $html .= '<div class="alert-container"></div>';
                 $html .= "<div class='d-flex justify-content-center text-center'>";
 
@@ -230,7 +231,7 @@ if (confirm_sesskey()) {
                     $sourcecoursehtml = "
                     <h6>Previous Course you were enrolled in : </h6>
                     <div>
-                    <a href='".$viewurl->out()."' class='previewcourse_source_course_link' target='_blank'>".$sourcecourse->fullname."</a>
+                    <a href='" . $viewurl->out() . "' class='previewcourse_source_course_link' target='_blank'>" . $sourcecourse->fullname . "</a>
                     &nbsp;
                     <i class='fa fa-pencil changecoursebutton' style='cursor:pointer;'></i>
                     </div>";
@@ -247,7 +248,7 @@ if (confirm_sesskey()) {
                 $curcategory = core_course_category::get($templatecategory);
                 $curcourses = $curcategory->get_courses(['recursive' => false]);
                 foreach ($curcourses as $course) {
-                    $sourcecoursehtml .= "<option value='".$course->id."'>".$course->fullname."</option>";
+                    $sourcecoursehtml .= "<option value='" . $course->id . "'>" . $course->fullname . "</option>";
                 }
 
                 $sourcecoursehtml .= "</select>";
@@ -276,8 +277,8 @@ if (confirm_sesskey()) {
 
                 $warninghtml = local_rollover_wizard_verify_course($sourcecourse->id, $targetcourse->id, false);
                 $html = '<h2 class="text-center">Import from previous course</h2>'
-                .'<p></p>'
-                .'<div class="alert-container"></div>';
+                    . '<p></p>'
+                    . '<div class="alert-container"></div>';
                 $html .= "<div class='d-flex flex-column justify-content-center text-center'>";
 
                 if (empty($sourcecourse)) {
@@ -288,7 +289,7 @@ if (confirm_sesskey()) {
                     $sourcecoursehtml = "
                     <h6>Previous Course you were enrolled in : </h6>
                     <div>
-                    <a href='".$viewurl->out()."' class='previewcourse_source_course_link' target='_blank'>".$sourcecourse->fullname."</a>
+                    <a href='" . $viewurl->out() . "' class='previewcourse_source_course_link' target='_blank'>" . $sourcecourse->fullname . "</a>
                     &nbsp;
                     <i class='fa fa-pencil changecoursebutton' style='cursor:pointer;'></i>
                     </div>";
@@ -303,9 +304,9 @@ if (confirm_sesskey()) {
                 $html .= "<div class='filter-button-container'><button type='button' class='btn btn-primary' id='btn-select-filter'>Select Activity Types</button></div>";
                 $html .= '<div class="form-check d-flex justify-content-center align-items-center" style="gap:20px; flex-grow:1;">';
                 $html .= '<input class="form-check-input position-static rollover-check-coursesettings"';
-                $html .= ' id="rollover-wizard-coursesettings'.$time.'" data-module="coursesettings" data-section="-1"';
+                $html .= ' id="rollover-wizard-coursesettings' . $time . '" data-module="coursesettings" data-section="-1"';
                 $html .= ' name="rollover-wizard-cm[]" type="checkbox" value="coursesettings" style="margin-top:0;">';
-                $html .= ' <label class="form-check-label" for="rollover-wizard-coursesettings'.$time.'">Import Course Settings</label></div>';
+                $html .= ' <label class="form-check-label" for="rollover-wizard-coursesettings' . $time . '">Import Course Settings</label></div>';
                 $html .= "<div class='select-button-container'><button type='button' class='btn btn-primary' id='btn-select-all'>Select All</button>";
                 $html .= " | <button type='button' class='btn btn-secondary' id='btn-deselect-all'>Deselect All</button></div>";
                 $html .= "</div>";
@@ -318,40 +319,40 @@ if (confirm_sesskey()) {
 
                 $coursecontext = \context_course::instance($targetcourse->id);
                 $PAGE->set_context($coursecontext);
-             
+
                 $excludedactivitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
                 $excludedactivitytypes = array_map('trim', $excludedactivitytypes);
-              
+
                 foreach ($coursesections as $section) {
                     $sequence = $section->sequence;
                     $html .= '<div class="card">';
                     $html .= '<div class="card-header ">';
                     $html .= '<div class="d-flex justify-content-between w-80 text-center">';
                     $html .= '<div class="form-check"><input class="form-check-input position-static rollover-check-section"';
-                    $html .= ' data-section="'.$section->section.'" name="rollover-wizard-cm[]" data-module="coursesections"';
-                    $html .= ' data-section="'.$section->section.'" type="checkbox" value="'.$section->section.'" data-id="'.$section->id.'"></div>';
+                    $html .= ' data-section="' . $section->section . '" name="rollover-wizard-cm[]" data-module="coursesections"';
+                    $html .= ' data-section="' . $section->section . '" type="checkbox" value="' . $section->section . '" data-id="' . $section->id . '"></div>';
                     $html .= '<div style="flex-grow:1;cursor:pointer;" data-toggle="collapse"';
-                   
+
                     $html .= ' data-target="#collapsecontainer' . $iteration . '"><b>' . get_section_name($sourcecourse->id, $section->section) . "</b>";
 
                     if (!$section->visible) {
                         $html .= "<span class='badge badge-pill badge-warning ml-2'>Hidden from students</span>";
                     }
 
-                    $html .='</div>';
-                   
-                    $html .= '<i class="collapse-toggle" style="cursor:pointer;" data-toggle="collapse" data-target="#collapsecontainer'.$iteration.'"></i>';
+                    $html .= '</div>';
+
+                    $html .= '<i class="collapse-toggle" style="cursor:pointer;" data-toggle="collapse" data-target="#collapsecontainer' . $iteration . '"></i>';
                     $html .= '</div>';
                     $html .= '</div>';
-                    $html .= '<div class="card-body collapse show" id="collapsecontainer'.$iteration.'">';
+                    $html .= '<div class="card-body collapse show" id="collapsecontainer' . $iteration . '">';
                     $html .= '<div class="d-flex flex-column" style="gap:15px;">';
                     $cmids = explode(',', $sequence);
                     foreach ($cmids as $cmid) {
                         $cm = $DB->get_record('course_modules', ['id' => $cmid]);
                         if ($cm && $cm->deletioninprogress < 1) {
                             $modulerecord = $DB->get_record('modules', ['id' => $cm->module]);
-                           
-                            if($modulerecord->name==='quiz'){
+
+                            if ($modulerecord->name === 'quiz') {
                                 $quizobj = quiz::create($cm->instance, $USER->id);
                             }
                             if (!$modulerecord) {
@@ -376,11 +377,11 @@ if (confirm_sesskey()) {
                             $modlogo = $OUTPUT->image_icon('monologo', $modshortname, $modshortname);
                             $activityrecord = $DB->get_record($modshortname, ['id' => $cm->instance]);
                             $activityname = $activityrecord->name;
-                            $html .= "<div class='d-flex flex-row justify-content-start align-items-center' style='gap:25px;".$disabledstyle."'>";
-                            $html .= '<div class="form-check"><input class="form-check-input position-static rollover-check-'.$modshortname.' rollover-check-cm" '.$disabledattr.'';
-                            $html .= ' data-section="'.$section->section.'" data-module="'.$modshortname.'" name="rollover-wizard-cm[]" type="checkbox" value="'.$cm->id.'"></div>';
+                            $html .= "<div class='d-flex flex-row justify-content-start align-items-center' style='gap:25px;" . $disabledstyle . "'>";
+                            $html .= '<div class="form-check"><input class="form-check-input position-static rollover-check-' . $modshortname . ' rollover-check-cm" ' . $disabledattr . '';
+                            $html .= ' data-section="' . $section->section . '" data-module="' . $modshortname . '" name="rollover-wizard-cm[]" type="checkbox" value="' . $cm->id . '"></div>';
                             $html .= $modlogo;
-                            $html .= '<div class="d-flex flex-column text-left"><div class="text-uppercase small">'.$modshortname.'</div><div>'.$activityname.'</div></div>';
+                            $html .= '<div class="d-flex flex-column text-left"><div class="text-uppercase small">' . $modshortname . '</div><div>' . $activityname . '</div></div>';
                             if ($cm->visible == 0) {
                                 $html .= '<div class="my-1 d-flex align-items-center"><span class="badge badge-pill badge-warning">Hidden from students</span></div>';
                             }
@@ -409,7 +410,7 @@ if (confirm_sesskey()) {
                 $sessiondata = $_SESSION['local_rollover_wizard'][$datakey];
                 $targetcourse = $sessiondata['target_course'];
                 $html = '<h2 class="text-center">Import a blank template</h2>'
-                .'<p></p>';
+                    . '<p></p>';
                 $html .= '<div class="alert-container"></div>';
                 $html .= "<div class='row text-center'>";
 
@@ -435,7 +436,7 @@ if (confirm_sesskey()) {
                     $sourcecoursehtml = "
                     <h6>Template Course : </h6>
                     <div>
-                    <a href='".$viewurl->out()."' class='previewcourse_source_course_link' target='_blank'>".$sourcecourse->fullname."</a>
+                    <a href='" . $viewurl->out() . "' class='previewcourse_source_course_link' target='_blank'>" . $sourcecourse->fullname . "</a>
                     &nbsp;
                     <i class='fa fa-pencil changecoursebutton' style='cursor:pointer;'></i>
                     </div>";
@@ -449,7 +450,7 @@ if (confirm_sesskey()) {
                 $html .= "</div></div>";
                 // Target Course.
                 $html .= "<div class='col-5'><div class='d-flex flex-column justify-content-center'>";
-                $html .= "<h6>This Course : </h6>".$targetcourse->fullname;
+                $html .= "<h6>This Course : </h6>" . $targetcourse->fullname;
                 $html .= "</div></div>";
                 $html .= "</div>";
                 display_result(200, ['html' => $html]);
@@ -463,8 +464,8 @@ if (confirm_sesskey()) {
                 $sessiondata = $_SESSION['local_rollover_wizard'][$datakey];
                 $targetcourse = $sessiondata['target_course'];
                 $html = '<h2 class="text-center">Import from previous course</h2>'
-                .'<p></p>'
-                .'<div class="alert-container"></div>';
+                    . '<p></p>'
+                    . '<div class="alert-container"></div>';
                 $html .= "<div class='d-flex flex-column justify-content-between text-center'>";
                 $selectedactivity = $sessiondata['selected_activity'];
                 $processedactivity = [];
@@ -489,7 +490,7 @@ if (confirm_sesskey()) {
                 $sourcecoursehtml = "
                 <h6>Previous Course you were enrolled in : </h6>
                 <div>
-                <p>".$sourcecourse->fullname."</p>
+                <p>" . $sourcecourse->fullname . "</p>
                 </div>";
 
                 $html .= "<div class='d-flex flex-column justify-content-center'>";
@@ -527,7 +528,7 @@ if (confirm_sesskey()) {
                     }
                     $sequence = $section->sequence;
                     $html .= '<tr>';
-                    $html .= '<td colspan="2"><b>'.get_section_name($sourcecourse->id, $section->section)."</b>";
+                    $html .= '<td colspan="2"><b>' . get_section_name($sourcecourse->id, $section->section) . "</b>";
                     if (!$section->visible) {
                         $html .= "<span class='badge badge-pill badge-warning ml-2'>Hidden from students</span>";
                     }
@@ -562,9 +563,9 @@ if (confirm_sesskey()) {
                             $activityname = $activityrecord->name;
                             $html .= "<tr>";
                             $html .= "<td>";
-                            $html .= "<div class='d-flex flex-row justify-content-start align-items-center' style='gap:25px;".$disabledstyle."'>";
+                            $html .= "<div class='d-flex flex-row justify-content-start align-items-center' style='gap:25px;" . $disabledstyle . "'>";
                             $html .= $modlogo;
-                            $html .= '<div class="d-flex flex-column text-left"><div class="text-uppercase small">'.$modshortname.'</div><div>'.$activityname.'</div></div>';
+                            $html .= '<div class="d-flex flex-column text-left"><div class="text-uppercase small">' . $modshortname . '</div><div>' . $activityname . '</div></div>';
                             if ($cm->visible == 0) {
                                 $html .= '<div class="my-1 d-flex align-items-center"><span class="badge badge-pill badge-warning">Hidden from students</span></div>';
                             }
@@ -610,8 +611,8 @@ if (confirm_sesskey()) {
 
                 $targetcourse = $sessiondata['target_course'];
                 $html = '<h2 class="text-center">Import a blank template</h2>'
-                .'<p></p>'
-                .'<div class="alert-container"></div>';
+                    . '<p></p>'
+                    . '<div class="alert-container"></div>';
                 $html .= "<div class='d-flex flex-column justify-content-between text-center'>";
                 $selectedactivity = $sessiondata['selected_activity'];
                 $processedactivity = [];
@@ -622,7 +623,7 @@ if (confirm_sesskey()) {
                 $sourcecoursehtml = "
                 <h6>Template Course : </h6>
                 <div>
-                <p>".$sourcecourse->fullname."</p>
+                <p>" . $sourcecourse->fullname . "</p>
                 </div>";
 
                 $html .= "<div class='d-flex flex-column justify-content-center'>";
@@ -631,9 +632,9 @@ if (confirm_sesskey()) {
                 $time = time();
                 $html .= '<div class="form-check d-flex justify-content-center align-items-center" style="gap:20px; flex-grow:1;">';
                 $html .= ' <input class="form-check-input position-static rollover-check-coursesettings"';
-                $html .= ' id="rollover-wizard-coursesettings'.$time.'" data-module="coursesettings"';
+                $html .= ' id="rollover-wizard-coursesettings' . $time . '" data-module="coursesettings"';
                 $html .= ' data-section="-1" name="rollover-wizard-cm[]" type="checkbox" value="coursesettings" style="margin-top:0;">';
-                $html .= ' <label class="form-check-label" for="rollover-wizard-coursesettings'.$time.'">Import Course Settings</label></div>';
+                $html .= ' <label class="form-check-label" for="rollover-wizard-coursesettings' . $time . '">Import Course Settings</label></div>';
                 $html .= "<div class='d-flex flex-column w-75 mx-auto' style='gap:10px;max-height: 50vh;overflow-y:scroll;'>";
                 $html .= "<table class='table table-striped'>";
                 $html .= "<thead>";
@@ -654,17 +655,17 @@ if (confirm_sesskey()) {
 
                 $excludedactivitytypes = (empty(trim($setting->activities_notberolled)) ? [] : explode(',', $setting->activities_notberolled));
                 $excludedactivitytypes = array_map('trim', $excludedactivitytypes);
-                $selectactivity=[];
-                $selectedsections=[];
+                $selectactivity = [];
+                $selectedsections = [];
                 foreach ($coursesections as $section) {
                     $sequence = $section->sequence;
-                    $selectedsections[]=$section->section;
+                    $selectedsections[] = $section->section;
                     $html .= '<tr>';
-                    $html .= '<td colspan="2"><b>'.get_section_name($sourcecourse->id, $section->section)."</b>";
+                    $html .= '<td colspan="2"><b>' . get_section_name($sourcecourse->id, $section->section) . "</b>";
                     if (!$section->visible) {
                         $html .= "<span class='badge badge-pill badge-warning ml-2'>Hidden from students</span>";
                     }
-                    $html .='</td>';
+                    $html .= '</td>';
                     $html .= '</tr>';
                     $cmids = explode(',', $sequence);
                     foreach ($cmids as $cmid) {
@@ -684,9 +685,9 @@ if (confirm_sesskey()) {
                                 $disabled = true;
                                 $disabledattr = "disabled";
                                 $disabledstyle = "opacity: 50%;";
-                              $selectactivity[]=[
-                                "activity"=>$modulerecord->name."_".$cm->id,
-                              ];
+                                $selectactivity[] = [
+                                    "activity" => $modulerecord->name . "_" . $cm->id,
+                                ];
                             }
                             $modshortname = $modulerecord->name;
                             $modfullname = get_string('pluginname', $modshortname);
@@ -698,9 +699,9 @@ if (confirm_sesskey()) {
                             $activityname = $activityrecord->name;
                             $html .= "<tr>";
                             $html .= "<td>";
-                            $html .= "<div class='d-flex flex-row justify-content-start align-items-center' style='gap:25px;".$disabledstyle."'>";
+                            $html .= "<div class='d-flex flex-row justify-content-start align-items-center' style='gap:25px;" . $disabledstyle . "'>";
                             $html .= $modlogo;
-                            $html .= '<div class="d-flex flex-column text-left"><div class="text-uppercase small">'.$modshortname.'</div><div>'.$activityname.'</div></div>';
+                            $html .= '<div class="d-flex flex-column text-left"><div class="text-uppercase small">' . $modshortname . '</div><div>' . $activityname . '</div></div>';
                             if ($cm->visible == 0) {
                                 $html .= '<div class="my-1 d-flex align-items-center"><span class="badge badge-pill badge-warning">Hidden from students</span></div>';
                             }
@@ -739,27 +740,28 @@ if (confirm_sesskey()) {
                     $html .= '<input type="hidden" id="rollover_process_mode" value="instantexecute">';
                 }
 
-                
-                display_result(200, ['html' => $html,"excludeactivity"=>$selectactivity,"section"=>$selectedsections]);
+
+                display_result(200, ['html' => $html, "excludeactivity" => $selectactivity, "section" => $selectedsections]);
             }
         }
 
         if ($step == 5) {
             $mode = required_param('mode', PARAM_TEXT);
+            $quiz=required_param("quiz",PARAM_BOOL);
             if ($mode == 'previouscourse') {
                 // Success Message : The content import has completed successfully.
                 // Fail Message : The content import did not complete due to XXXX. Please contact LXI for support.
                 $html = '<h2 class="text-center">Import from previous course</h2>'
-                .'<p></p>'
-                .'<div class="alert-container"></div>';
+                    . '<p></p>'
+                    . '<div class="alert-container"></div>';
             }
             if ($mode == 'blanktemplate') {
                 // Success Message : The content import has completed successfully.
                 // Fail Message : The content import did not complete due to XXXX. Please contact LXI for support.
 
                 $html = '<h2 class="text-center">Import a blank template</h2>'
-                .'<p></p>'
-                .'<div class="alert-container"></div>';
+                    . '<p></p>'
+                    . '<div class="alert-container"></div>';
             }
 
             $html .= "<div class='d-flex justify-content-center align-items-center w-100 h-100'>";
@@ -770,8 +772,12 @@ if (confirm_sesskey()) {
             $sourcecourse = $sessiondata['source_course'];
 
             $iscron = local_rollover_wizard_is_crontask($sourcecourse->id);
+
+            if ($quiz) {
+                $limit = local_rollover_wizard_is_limit_question($sourcecourse->id);
+            }
             // $is_cron = false;
-            if ($iscron) {
+            if ($iscron || $limit) {
                 $taskname = 'local_rollover_wizard\task\execute_rollover';
 
                 $task = \core\task\manager::get_scheduled_task($taskname);
@@ -779,7 +785,7 @@ if (confirm_sesskey()) {
                     print_error('cannotfindinfo', 'error', $taskname);
                 }
                 $html .= "<div class='d-flex flex-column rollover-finish-notification'>";
-                $html .= "<p>The content import will take place on ".userdate($task->get_next_run_time())."</p>";
+                $html .= "<p>The content import will take place on " . userdate($task->get_next_run_time()) . "</p>";
                 $html .= "</div>";
             } else {
                 $html .= "<div class='d-flex flex-column rollover-finish-notification'>";
@@ -799,6 +805,8 @@ if (confirm_sesskey()) {
         display_result(200, ['data' => $sessiondata]);
     } else if ($action == 'retrieveconfirmdialog') {
         $mode = required_param('mode', PARAM_TEXT);
+        $quiz = required_param('quiz', PARAM_BOOL);
+
         $html = '';
         if ($mode == 'instantexecute') {
             $html .= "<p>The import process will start immediately</p>";
@@ -810,9 +818,17 @@ if (confirm_sesskey()) {
                 print_error('cannotfindinfo', 'error', $taskname);
             }
             $setting = get_config('local_rollover_wizard');
+            if ($quiz) {
+                $html .= "<p>The selected content contains over ".$setting->cron_limit_question." questions ";
+                $html .= "- the content import will take place on " . userdate($task->get_next_run_time()) . ". You will receive a notification when it has completed.</p>";
+            } else{
+                $html .= "<p>The selected content is over " . $setting->cron_size_threshold . "GB ";
+                $html .= "- the content import will take place on " . userdate($task->get_next_run_time()) . ". You will receive a notification when it has completed.</p>";
+            } 
+           
+            
             // The selected content is over 3GB - the content import will take place on xxxx. You will receive a notification when it has completed.
-            $html .= "<p>The selected content is over ".$setting->cron_size_threshold."GB ";
-            $html .= "- the content import will take place on ".userdate($task->get_next_run_time()).". You will receive a notification when it has completed.</p>";
+
         }
 
         display_result(200, ['html' => $html]);
@@ -843,11 +859,30 @@ if (confirm_sesskey()) {
         display_result($status, ['data' => $result]);
     } else if ($action == 'saveselectedactivity') {
         $selectedactivity = required_param('selectedactivity', PARAM_TEXT);
+        $mode = required_param("mode",PARAM_INT);
 
         $datakey = required_param('data_key', PARAM_INT);
         $sessiondata = $_SESSION['local_rollover_wizard'][$datakey];
         $result = json_decode($selectedactivity);
         $coursesettings = null;
+        $keys = array_column($result, 'key');
+        $sourcecourse = $sessiondata['source_course'];
+        $checkquiz = in_array('quiz', $keys, true);
+        $limitquestion=false;
+        if ($checkquiz) {
+            list($totalquestionbank, $questionbanks) = local_rollover_wizard_check_total_question_bank_course($sourcecourse);
+            if ($totalquestionbank >= get_config("local_rollover_wizard", "cron_limit_question")) {
+                $limitquestion = true;
+            }
+        }
+
+        if ($mode == 2){
+            list($totalquestionbank, $questionbanks) = local_rollover_wizard_check_total_question_bank_course($sourcecourse);
+            if ($totalquestionbank >= get_config("local_rollover_wizard", "cron_limit_question")) {
+                $limitquestion = true;
+            }
+        }
+    
         foreach ($result as $res) {
             if ($res->key == 'coursesettings' || $res->value == 'coursesettings') {
                 $coursesettings = $res;
@@ -857,13 +892,14 @@ if (confirm_sesskey()) {
         $sessiondata['selected_activity'] = $result;
         $sessiondata['import_course_setting'] = !empty($coursesettings);
         $_SESSION['local_rollover_wizard'][$datakey] = $sessiondata;
-        display_result(200, ['data' => $result]);
+        display_result(200, ['data' => $result, "quiz" => $limitquestion]);
     } else if ($action == 'startrollover') {
         $mode = required_param('mode', PARAM_RAW);
         $datakey = required_param('data_key', PARAM_INT);
         $activity = required_param("activity", PARAM_TEXT);
-        $section = required_param("nonsection",PARAM_TEXT);
-        $blanksections=required_param("section",PARAM_TEXT);
+        $section = required_param("nonsection", PARAM_TEXT);
+        $blanksections = required_param("section", PARAM_TEXT);
+        $quiz = required_param("quiz", PARAM_INT);
         $excludedactivitytypes = (empty(trim($activity))) ? [] : json_decode($activity);
         $sessiondata = $_SESSION['local_rollover_wizard'][$datakey];
         $targetcourse = $sessiondata['target_course'];
@@ -872,21 +908,22 @@ if (confirm_sesskey()) {
         $selectedsections = null;
         if ($mode == 'blanktemplate') {
 
-            if(!empty($sessiondata["import_course_setting"]) || ($sessiondata["import_course_setting"]===true)){
-                $cmids[]="coursesettings";
+            if (!empty($sessiondata["import_course_setting"]) || ($sessiondata["import_course_setting"] === true)) {
+                $cmids[] = "coursesettings";
             }
 
             foreach ($excludedactivitytypes as $key => $value) {
-                $excludedactivitytypes[$key]=$value->activity;
+                $excludedactivitytypes[$key] = $value->activity;
             }
             $selectedactivity = $DB->get_records('course_modules', ['course' => $sourcecourse->id]);
             foreach ($selectedactivity as $activity) {
                 $cmids[] = $activity->id;
             }
-            $selectedsections=json_decode($blanksections);
+            $selectedsections = json_decode($blanksections);
+            $limit = local_rollover_wizard_is_limit_question($sourcecourse->id);
         }
 
-       
+
         if ($mode == 'previouscourse') {
             $selectedactivity = $sessiondata['selected_activity'];
             $cmids = [];
@@ -906,11 +943,12 @@ if (confirm_sesskey()) {
         }
         $instantexecute = 1;
         $iscron = local_rollover_wizard_is_crontask($sourcecourse->id);
-        if ($iscron) {
+        if($quiz){
+            $limit = local_rollover_wizard_is_limit_question($sourcecourse->id);
+        }
+        if ($iscron || $limit) {
             $instantexecute = 0;
         }
-
-        
         $excludesection = json_decode($section);
         $taskid = time();
         $newrollover = new \stdClass();
@@ -930,8 +968,9 @@ if (confirm_sesskey()) {
         $newrollover->timecreated = time();
         $newrollover->timeupdated = time();
         $DB->insert_record('local_rollover_wizard_log', $newrollover);
-       
-        if (!$iscron) {
+
+
+        if (!$iscron && !$limit) {
             $command = "php " . __DIR__ . "/rollover_wizard_background.php $taskid > /dev/null 2>&1 &";
             exec($command);
         }
@@ -966,7 +1005,7 @@ if (confirm_sesskey()) {
             $text = get_string('wizard_support_text', 'local_rollover_wizard');
             $link = get_string('wizard_support_link', 'local_rollover_wizard');
             $comp = get_string('wizard_support_company', 'local_rollover_wizard');
-            $link = "<a href='".$link."' target='_blank'>".$comp."</a>";
+            $link = "<a href='" . $link . "' target='_blank'>" . $comp . "</a>";
             // $message = 'The content import did not complete due to : <br>'.$record->note.'<br><p>Please contact <a href="'.$link.'" target="_blank">LXI</a> for support</p>';
             $message = str_replace('{NOTE}', $record->note, $text);
             $message = str_replace('{LINK}', $link, $message);
@@ -1171,9 +1210,9 @@ if (confirm_sesskey()) {
         $sql = "SELECT * FROM {course} WHERE ({$likequery1} OR {$likequery2}) AND id > 1";
         $params =
             [
-            'fullname' => '%' . $DB->sql_like_escape($search) . '%',
-            'shortname' => '%' . $DB->sql_like_escape($search) . '%',
-        ];
+                'fullname' => '%' . $DB->sql_like_escape($search) . '%',
+                'shortname' => '%' . $DB->sql_like_escape($search) . '%',
+            ];
         if (!empty($categories)) {
             list($insql, $inparams) = $DB->get_in_or_equal($categories, SQL_PARAMS_NAMED);
             $params = array_merge($params, $inparams);
