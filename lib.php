@@ -485,13 +485,16 @@ function local_rollover_wizard_executerollover($mode = 1, $taskid = 0)
         mtrace('TaskID ' . $rolloverqueue->taskid . ' finished.');
         $setting = get_config('local_rollover_wizard');
         if (!empty($setting->enable_email_notification) && $setting->enable_email_notification == 1) {
-            try {
-                mtrace('Rollover process - Start sending email out.');
-                local_rollover_wizard_send_email($rolloverqueue);
-                mtrace('Rollover process - Sending email finished.');
-            } catch (\Exception $e) {
-                mtrace("Error at sending email out: " . $e->getMessage());
+            if($rolloverqueue->status===ROLLOVER_WIZARD_SUCCESS){
+                try {
+                    mtrace('Rollover process - Start sending email out.');
+                    local_rollover_wizard_send_email($rolloverqueue);
+                    mtrace('Rollover process - Sending email finished.');
+                } catch (\Exception $e) {
+                    mtrace("Error at sending email out: " . $e->getMessage());
+                }
             }
+            
         }
         mtrace('Rollover process finished.');
         

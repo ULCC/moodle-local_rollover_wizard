@@ -436,11 +436,14 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
                     if (result.length != 0) {
                         var result = JSON.parse(result);
                         if (result.status == 200) {
-                            updatemode = true;
+                            if(result.data.quiz){
+                                updatemode = true;
+                            }
                             modalConfirmProcess(rollover_process_mode);
                         }
                     }
                 });
+               
             }
             else {
                 modalConfirmProcess(rollover_process_mode);
@@ -552,10 +555,12 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
     function modalConfirmProcess(rollover_process_mode) {
         var html_body = '';
         html_body += "<div class='container' id='container-notif'>";
-
+      
         if (updatemode) {
             rollover_process_mode = 'cron';
         }
+
+       
         var promise = ajax('retrieveconfirmdialog', { mode: rollover_process_mode, quiz: updatemode });
         promise.then(function (result) {
             if (result.length != 0) {

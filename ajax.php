@@ -881,6 +881,7 @@ if (confirm_sesskey()) {
             if ($totalquestionbank >= get_config("local_rollover_wizard", "cron_limit_question")) {
                 $limitquestion = true;
             }
+            
         }
     
         foreach ($result as $res) {
@@ -906,6 +907,7 @@ if (confirm_sesskey()) {
         $sourcecourse = $sessiondata['source_course'];
         $cmids = [];
         $selectedsections = null;
+        
         if ($mode == 'blanktemplate') {
 
             if (!empty($sessiondata["import_course_setting"]) || ($sessiondata["import_course_setting"] === true)) {
@@ -920,7 +922,7 @@ if (confirm_sesskey()) {
                 $cmids[] = $activity->id;
             }
             $selectedsections = json_decode($blanksections);
-            $limit = local_rollover_wizard_is_limit_question($sourcecourse->id);
+           
         }
 
 
