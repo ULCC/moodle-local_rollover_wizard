@@ -6,7 +6,7 @@
  */
 
 
-require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events', 'core/str'], function ($, ModalFactory, notification, ModalEvents, Str) {
+require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events', 'core/str','core/modal'], function ($, ModalFactory, notification, ModalEvents, Str,Modals) {
 
     // var index_page = M.cfg.wwwroot + '/local/rollover_wizard/index.php';
     var wizard_step = 1;
@@ -78,7 +78,7 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
                         + '    <div id="wizard_next_container"><button type="button" id="wizard_next_button" class="btn btn-primary">' + nexttext + '</button></div>'
                         + '</div>'
                         + '</div>';
-                    main_modal = ModalFactory.create({
+                    main_modal = Modals.create({
                         large: true,
                         title: Str.get_string('importcourse', 'local_rollover_wizard'),
                         // type: ModalFactory.types.SAVE_CANCEL,
@@ -516,7 +516,7 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
             + '    <div id="wizard_next_container"><button type="button" class="btn btn-primary filter_activity_select">Select</button></div>'
             + '</div>'
             + '</div>';
-        ModalFactory.create({
+        Modals.create({
             large: true,
             title: 'Select activity types',
             body: html_body,
@@ -757,7 +757,7 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
         if (wizard_mode == 'blanktemplate') {
             titletext = "Select template course";
         }
-        ModalFactory.create({
+        Modals.create({
             large: true,
             title: titletext,
             body: html_body,
@@ -779,7 +779,7 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
                 searchbtn += '</div>';
                 $(root).find('.crsearchbarcontainer').html(searchbtn);
                 $(root).find('.crsavebtn').on('click', function () {
-                    $(root).find('button.close').click();
+                    $(root).find(".btn-close").click();
                 });
                 $(root).find('.crsearchbtn').on('click', function () {
                     $(root).find('.wrappermodalcontent').html('<span style="font-size: 28px; display: block; margin: 0 auto; text-align: center; padding: 200px 0;"><i class="fa fa-spin fa-spinner"></span>');
