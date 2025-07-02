@@ -32,7 +32,6 @@ require_once($CFG->dirroot . '/mod/quiz/locallib.php');
 require_once($CFG->dirroot . '/course/lib.php');
 require_once($CFG->dirroot . '/local/rollover_wizard/lib.php');
 require_once($CFG->dirroot . '/lib/formslib.php');
-require_once($CFG->libdir . '/cronlib.php');
 
 global $CFG, $DB, $USER, $PAGE;
 
@@ -51,8 +50,7 @@ if (!isloggedin()) {
  * @param mixed $data The data to be included in the response. Can be any data type.
  * @return void
  */
-function display_result($status = 200, $data)
-{
+function display_result($status = 200, $data) {
     echo json_encode([
         'status' => 200,
         'data' => $data,
@@ -180,7 +178,8 @@ if (confirm_sesskey()) {
                     $sourcecoursehtml = "
                     <h6>Previous Course you were enrolled in : </h6>
                     <div>
-                    <a href='" . $viewurl->out() . "' class='previewcourse_source_course_link' target='_blank' data-courseid='" . $sourcecourse->id . "'>" . $sourcecourse->fullname . "</a>
+                    <a href='" . $viewurl->out() . "' class='previewcourse_source_course_link'
+                    target='_blank' data-courseid='" . $sourcecourse->id . "'>" . $sourcecourse->fullname . "</a>
                     &nbsp;
                     <i class='fa fa-pencil changecoursebutton' style='cursor:pointer;'></i>
                     </div>";
@@ -747,7 +746,7 @@ if (confirm_sesskey()) {
 
         if ($step == 5) {
             $mode = required_param('mode', PARAM_TEXT);
-            $quiz=required_param("quiz",PARAM_BOOL);
+            $quiz = required_param("quiz", PARAM_BOOL);
             if ($mode == 'previouscourse') {
                 // Success Message : The content import has completed successfully.
                 // Fail Message : The content import did not complete due to XXXX. Please contact LXI for support.
@@ -772,7 +771,7 @@ if (confirm_sesskey()) {
             $sourcecourse = $sessiondata['source_course'];
 
             $iscron = local_rollover_wizard_is_crontask($sourcecourse->id);
-
+            $limit = false;
             if ($quiz) {
                 $limit = local_rollover_wizard_is_limit_question($sourcecourse->id);
             }
@@ -821,13 +820,10 @@ if (confirm_sesskey()) {
             if ($quiz) {
                 $html .= "<p>The selected content contains over ".$setting->cron_limit_question." questions ";
                 $html .= "- the content import will take place on " . userdate($task->get_next_run_time()) . ". You will receive a notification when it has completed.</p>";
-            } else{
+            } else {
                 $html .= "<p>The selected content is over " . $setting->cron_size_threshold . "GB ";
                 $html .= "- the content import will take place on " . userdate($task->get_next_run_time()) . ". You will receive a notification when it has completed.</p>";
-            } 
-           
-            
-            // The selected content is over 3GB - the content import will take place on xxxx. You will receive a notification when it has completed.
+            }
 
         }
 
@@ -859,7 +855,7 @@ if (confirm_sesskey()) {
         display_result($status, ['data' => $result]);
     } else if ($action == 'saveselectedactivity') {
         $selectedactivity = required_param('selectedactivity', PARAM_TEXT);
-        $mode = required_param("mode",PARAM_INT);
+        $mode = required_param("mode", PARAM_INT);
 
         $datakey = required_param('data_key', PARAM_INT);
         $sessiondata = $_SESSION['local_rollover_wizard'][$datakey];
@@ -868,7 +864,7 @@ if (confirm_sesskey()) {
         $keys = array_column($result, 'key');
         $sourcecourse = $sessiondata['source_course'];
         $checkquiz = in_array('quiz', $keys, true);
-        $limitquestion=false;
+        $limitquestion = false;
         if ($checkquiz) {
             list($totalquestionbank, $questionbanks) = local_rollover_wizard_check_total_question_bank_course($sourcecourse);
             if ($totalquestionbank >= get_config("local_rollover_wizard", "cron_limit_question")) {
@@ -876,14 +872,14 @@ if (confirm_sesskey()) {
             }
         }
 
-        if ($mode == 2){
+        if ($mode == 2) {
             list($totalquestionbank, $questionbanks) = local_rollover_wizard_check_total_question_bank_course($sourcecourse);
             if ($totalquestionbank >= get_config("local_rollover_wizard", "cron_limit_question")) {
                 $limitquestion = true;
             }
-            
+
         }
-    
+
         foreach ($result as $res) {
             if ($res->key == 'coursesettings' || $res->value == 'coursesettings') {
                 $coursesettings = $res;
@@ -907,7 +903,7 @@ if (confirm_sesskey()) {
         $sourcecourse = $sessiondata['source_course'];
         $cmids = [];
         $selectedsections = null;
-        
+
         if ($mode == 'blanktemplate') {
 
             if (!empty($sessiondata["import_course_setting"]) || ($sessiondata["import_course_setting"] === true)) {
@@ -922,7 +918,7 @@ if (confirm_sesskey()) {
                 $cmids[] = $activity->id;
             }
             $selectedsections = json_decode($blanksections);
-           
+
         }
 
 
@@ -945,7 +941,8 @@ if (confirm_sesskey()) {
         }
         $instantexecute = 1;
         $iscron = local_rollover_wizard_is_crontask($sourcecourse->id);
-        if($quiz){
+        $limit = false;
+        if ($quiz) {
             $limit = local_rollover_wizard_is_limit_question($sourcecourse->id);
         }
         if ($iscron || $limit) {

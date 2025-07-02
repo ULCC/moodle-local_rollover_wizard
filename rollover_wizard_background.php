@@ -21,16 +21,16 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
- define('CLI_SCRIPT', true);
- require_once('../../config.php');
- require_once($CFG->dirroot . '/course/lib.php');
- require_once($CFG->libdir . '/cronlib.php');
- require_once($CFG->dirroot . '/backup/util/includes/backup_includes.php');
- require_once($CFG->dirroot . '/backup/util/includes/restore_includes.php');
- require_once($CFG->libdir . '/filelib.php');
- require_once($CFG->dirroot . '/local/rollover_wizard/lib.php');
+define('CLI_SCRIPT', true);
+require_once('../../config.php');
+require_once($CFG->dirroot . '/course/lib.php');
+require_once($CFG->libdir . '/cronlib.php');
+require_once($CFG->dirroot . '/backup/util/includes/backup_includes.php');
+require_once($CFG->dirroot . '/backup/util/includes/restore_includes.php');
+require_once($CFG->libdir . '/filelib.php');
+require_once($CFG->dirroot . '/local/rollover_wizard/lib.php');
 
- $taskid = $argv[1];
+$taskid = $argv[1];
 
- local_rollover_wizard_executerollover(1,$taskid);
+local_rollover_wizard_executerollover(1, $taskid);
 

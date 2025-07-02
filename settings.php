@@ -88,7 +88,7 @@ if ($hassiteconfig) {
     $settings->add($element);
 
     $limit = [
-                500 =>"500",
+                500 => "500",
                 1000 => "1000",
                 2000 => "2000",
                 3000 => "3000",
@@ -99,7 +99,7 @@ if ($hassiteconfig) {
                 20000 => "20000",
             ];
     $element = new admin_setting_configselect('local_rollover_wizard/cron_limit_question',
-     get_string("setting_page:limit_question","local_rollover_wizard"),
+     get_string("setting_page:limit_question", "local_rollover_wizard"),
                                 "",
         500, $limit);
     $settings->add($element);

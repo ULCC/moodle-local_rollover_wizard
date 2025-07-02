@@ -1,3 +1,5 @@
+/* eslint-disable camelcase */
+/* eslint-disable max-len */
 /**
  *
  * @package    local_rollover_wizard
@@ -6,9 +8,8 @@
  */
 
 
-require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events', 'core/str','core/modal'], function ($, ModalFactory, notification, ModalEvents, Str,Modals) {
-
-    // var index_page = M.cfg.wwwroot + '/local/rollover_wizard/index.php';
+require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events', 'core/str',
+    'core/modal'], function($, ModalFactory, notification, ModalEvents, Str, Modals) {
     var wizard_step = 1;
     var wizard_mode = null;
     var main_modal = null;
@@ -27,7 +28,7 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
     let sectionblank = [];
     let excludeactivityblank = [];
     var updatemode = false;
-    $(document).ready(function () {
+    $(document).ready(function() {
         var promise = ajax('retrievesessiondata');
         promise.then(function (result) {
             if (result.length != 0) {
@@ -47,7 +48,7 @@ require(['jquery', 'core/modal_factory', 'core/notification', 'core/modal_events
                 }
             }
         });
-        $('.nav-item').on('click', function (e) {
+        $('.nav-item').on('click', function(e) {
             if ($(this).data('key') == 'rolloverwizard') {
                 wizard_step = 1;
                 wizard_source_courseid = null;
