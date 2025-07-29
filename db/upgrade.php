@@ -167,5 +167,27 @@ function xmldb_local_rollover_wizard_upgrade($oldversion) {
         // Rollover_wizard savepoint reached.
         upgrade_plugin_savepoint(true, 2024061401, 'local', 'rollover_wizard');
     }
+
+    if ($oldversion < 2025072900) {
+
+        // Define table rollover_wizard_sectionlog to be created.
+        $table = new xmldb_table('local_rollover_wizard_sectionlog');
+
+        // Adding fields.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('sectionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('oldsummary', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('newsummary', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '20', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        // Conditionally create the table.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+        upgrade_plugin_savepoint(true, 2025072900, 'local', 'rollover_wizard');
+    }
     return true;
 }

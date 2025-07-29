@@ -99,13 +99,25 @@ if ($hassiteconfig) {
                 20000 => "20000",
             ];
     $element = new admin_setting_configselect('local_rollover_wizard/cron_limit_question',
-     get_string("setting_page:limit_question", "local_rollover_wizard"),
+    get_string("setting_page:limit_question", "local_rollover_wizard"),
                                 "",
         500, $limit);
     $settings->add($element);
-
-
     $element = new admin_setting_configtextarea('local_rollover_wizard/activities_notberolled', 'Activities not to be rolled over',
                                 'Put in activity types separated by commas. Ex: turnitin,forum', null, PARAM_TEXT, '20', '8');
+    $settings->add($element);
+
+    $element = new admin_setting_configselect(
+    'local_rollover_wizard/replace_url_limit',
+    'Replace URL limit per run',
+    'Select how many course sections should be processed per execution when replacing pluginfile URLs in course sections.',
+    10,
+    [
+        10 => '10 sections per run',
+        25 => '25 sections per run',
+        50 => '50 sections per run',
+        -1 => 'All sections (no limit)',
+    ]
+    );
     $settings->add($element);
 }
