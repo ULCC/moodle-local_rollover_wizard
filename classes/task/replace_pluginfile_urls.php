@@ -26,19 +26,18 @@ namespace local_rollover_wizard\task;
 /**
  * Executes a rollover process.
  *
- * This class is responsible for performing a rollover operation.
+ * This class is responsible for performing a calculate course size
  *
  * @package core\task
  */
-class execute_rollover extends \core\task\scheduled_task {
+class replace_pluginfile_urls extends \core\task\scheduled_task {
     /**
      * Gets the name of the task.
      *
      * @return string The name of the task.
      */
     public function get_name() {
-        // Shown on admin screens
-        return 'Rollover Wizard - Execute Rollover';
+        return get_string('replace_pluginfile_urls', 'local_rollover_wizard');
     }
 
     /**
@@ -47,22 +46,19 @@ class execute_rollover extends \core\task\scheduled_task {
      * @return bool True if the rollover was successful, false otherwise.
      */
     public function execute() {
-
         global $CFG;
-
         require_once($CFG->dirroot . '/local/rollover_wizard/lib.php');
-        local_rollover_wizard_executerollover();
-
+        local_rollover_wizard_replace_urls_section();
         return true;
     }
 
-     /**
-      * Checks if the task can run.
-      *
-      * This method always returns true, indicating that the task can run anytime.
-      *
-      * @return bool True if the task can run, false otherwise.
-      */
+    /**
+     * Checks if the task can run.
+     *
+     * This method always returns true, indicating that the task can run anytime.
+     *
+     * @return bool True if the task can run, false otherwise.
+     */
     public function can_run(): bool {
         return true;
     }

@@ -44,4 +44,14 @@ $tasks = [
         'month' => '*',
         'disabled' => 0,
     ],
+    [
+        'classname' => 'local_rollover_wizard\task\replace_pluginfile_urls',
+        'blocking' => 0,
+        'minute' => '0',
+        'hour' => '2',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+        'disabled' => 1,
+    ],
 ];

@@ -540,8 +540,8 @@ function local_rollover_wizard_check_question_bank($coursetarget, $coursecontext
         $contextidcategory = array_unique($contextidcategory);
         if (!empty($contextidcategory)) {
             $sql = "
-            SELECT qbe.id AS question_id, 
-            qbe.questioncategoryid, 
+            SELECT qbe.id AS question_id,
+            qbe.questioncategoryid,
             COALESCE(COUNT(qr.questionbankentryid), 0) AS usage_count
             FROM {question_bank_entries} qbe
             LEFT JOIN {question_references} qr ON qr.questionbankentryid = qbe.id
@@ -629,7 +629,6 @@ function local_rollover_wizard_course_create_sections_if_missing(
 function local_rollover_wizard_rewrite_summary($sourcesection, $targetsection) {
     global $DB;
     $summary = $sourcesection->summary;
-
     $sourcecontext = \context_course::instance($sourcesection->course);
     $targetcontext = \context_course::instance($targetsection->course);
     $doc = new DOMDocument;
@@ -643,7 +642,6 @@ function local_rollover_wizard_rewrite_summary($sourcesection, $targetsection) {
             $nameonly = str_replace('@@PLUGINFILE@@/', '', $src->nodeValue);
             $nameonly = explode('?', $nameonly)[0];
             $nameonly = urldecode($nameonly);
-
             $sql = "SELECT itemid
                     FROM {files}
                     WHERE component='course'
@@ -652,9 +650,7 @@ function local_rollover_wizard_rewrite_summary($sourcesection, $targetsection) {
                         AND contextid=:contextid LIMIT 1";
             $fileitemid = $DB->get_field_sql($sql, ['contextid' => $targetcontext->id, 'filename' => $nameonly]);
             if (empty($fileitemid)) {
-
                 $fs = get_file_storage();
-
                 // Get Source file.
                 $file = $fs->get_file($sourcecontext->id, 'course', 'section', $sourcesection->id, '/', $nameonly);
                 if (!$file) {
@@ -674,25 +670,25 @@ function local_rollover_wizard_rewrite_summary($sourcesection, $targetsection) {
 
                 $fileitemid = $DB->get_field_sql($sql, ['contextid' => $targetcontext->id, 'filename' => $nameonly]);
             }
-
             if (!empty($fileitemid)) {
-                $imgpath = file_rewrite_pluginfile_urls(
-                    $src->nodeValue,
-                    'pluginfile.php',
-                    $targetcontext->id,
-                    'course',
-                    'section',
-                    $fileitemid
-                );
-                $summary = str_replace($src->nodeValue, $imgpath, $summary);
+                $summary = str_replace($src->nodeValue, '@@PLUGINFILE@@/' . $nameonly, $summary);
             }
         }
     }
 
     return $summary;
 }
-
-
+/**
+ * Rewrite file URLs in the intro/summary field from source module to target module
+ * using the @@PLUGINFILE@@ format.
+ *
+ * This is typically used during course copy/rollover to ensure that
+ * file references are correctly adjusted in the new context.
+ *
+ * @param stdClass $sourcemodule The source module object (original course).
+ * @param stdClass $targetmodule The target module object (copied course).
+ * @return void
+ */
 function local_rollover_wizard_rewrite_format_intro($sourcemodule, $targetmodule) {
     global $DB;
 
@@ -712,7 +708,6 @@ function local_rollover_wizard_rewrite_format_intro($sourcemodule, $targetmodule
             $nameonly = str_replace('@@PLUGINFILE@@/', '', $src->nodeValue);
             $nameonly = explode('?', $nameonly)[0];
             $nameonly = urldecode($nameonly);
-
             $sql = "SELECT itemid
                     FROM {files}
                     WHERE component='mod{$targetmodule->modname}'
@@ -720,7 +715,6 @@ function local_rollover_wizard_rewrite_format_intro($sourcemodule, $targetmodule
                         AND " . $DB->sql_compare_text('filename') . "=" . $DB->sql_compare_text(':filename') . "
                         AND contextid=:contextid LIMIT 1";
             $fileitemid = $DB->get_field_sql($sql, ['contextid' => $targetcontext->id, 'filename' => $nameonly]);
-
             if (empty($fileitemid)) {
                 $fs = get_file_storage();
                 $file = $fs->get_file(
@@ -744,24 +738,13 @@ function local_rollover_wizard_rewrite_format_intro($sourcemodule, $targetmodule
                     'timemodified' => time(),
                 ];
                 $fs->create_file_from_storedfile($newfilerecord, $file);
-
                 $fileitemid = $DB->get_field_sql($sql, ['contextid' => $targetcontext->id, 'filename' => $nameonly]);
             }
-
             if (!empty($fileitemid)) {
-                $path = file_rewrite_pluginfile_urls(
-                    $src->nodeValue,
-                    'pluginfile.php',
-                    $targetcontext->id,
-                    'mod_' . $targetmodule->modname,
-                    'intro',
-                    $fileitemid
-                );
                 $summary = str_replace($src->nodeValue, '@@PLUGINFILE@@/' . $nameonly, $summary);
             }
         }
     }
-
     return $summary;
 }
 /**
@@ -1078,6 +1061,7 @@ function local_rollover_wizard_update_internal_links($rolloverqueue, $enabled) {
         if (!in_array($sourcesection->section, $includedsections) && $rolloverqueue->rollovermode == 'previouscourse') {
             continue;
         }
+
         if (!$enabled) {
             $targetsection->summary = local_rollover_wizard_rewrite_summary($sourcesection, $targetsection);
             $targetsection->summaryformat = $sourcesection->summaryformat;
@@ -1160,6 +1144,16 @@ function get_activities_by_section($sectionid) {
     return $contents;
 }
 
+/**
+ * Count total number of questions in the question bank for a given course.
+ *
+ * This function checks the number of questions available in the question bank
+ * of the specified course. It is useful for diagnostics or validating course
+ * integrity before performing operations like rollover.
+ *
+ * @param stdClass $course The course object.
+ * @return int The total number of questions in the question bank for the course.
+ */
 function local_rollover_wizard_check_total_question_bank_course($course) {
     global $DB;
     $sql = "
@@ -1190,4 +1184,54 @@ function local_rollover_wizard_check_total_question_bank_course($course) {
         $totalquestion = array_sum(array_column($questions, 'questioncount'));
     }
     return [$totalquestion, $questions];
+}
+
+/**
+ * Replaces pluginfile.php URLs with @@PLUGINFILE@@ in course section summaries.
+ *
+ * This function searches all course_sections with summaries containing
+ * 'pluginfile.php' and replaces them with Moodle's @@PLUGINFILE@@ placeholder.
+ * It respects a configurable limit set in the plugin settings.
+ *
+ * @return void
+ */
+function local_rollover_wizard_replace_urls_section() {
+    global $CFG, $DB;
+    require_once($CFG->dirroot . '/local/rollover_wizard/lib.php');
+    $limit = (int) get_config("local_rollover_wizard", "replace_url_limit");
+    $sql = "
+    SELECT cs.id, cs.summary, cs.course, c.fullname
+        FROM {course_sections} cs
+        JOIN {course} c ON c.id = cs.course
+        WHERE cs.summary LIKE :summary";
+    $params = ['summary' => '%pluginfile.php%'];
+    if ($limit > 0) {
+        $sql .= " LIMIT " . $limit;
+    }
+    $sections = $DB->get_records_sql($sql, $params);
+    if (!empty($sections)) {
+        foreach ($sections as $section) {
+            $summary = $section->summary;
+            $original = $summary;
+            $pattern = '/(src|href)="([^"]*pluginfile\.php[^"]*\/([^\/"]+))"/i';
+            $summary = preg_replace_callback($pattern, function ($matches) {
+                $filename = urldecode($matches[3]);
+                return $matches[1] . '="@@PLUGINFILE@@/' . $filename . '"';
+            }, $summary);
+            if ($summary !== $original) {
+                $DB->update_record('course_sections', (object)[
+                    'id' => $section->id,
+                    'summary' => $summary,
+                ]);
+                $log = new stdClass();
+                $log->sectionid = $section->id;
+                $log->courseid = $section->course;
+                $log->oldsummary = $original;
+                $log->newsummary = $summary;
+                $log->timecreated = time();
+                $DB->insert_record('local_rollover_wizard_sectionlog', $log);
+                mtrace("Updated section ID {$section->id} in course: {$section->fullname}");
+            }
+        }
+    }
 }

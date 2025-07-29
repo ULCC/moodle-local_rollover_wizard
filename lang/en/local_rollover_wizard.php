@@ -25,27 +25,28 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$string['pluginname'] = 'Content Rollover Wizard';
-$string['importcourse'] = 'Import Content';
-$string['rollover_wizard:edit'] = 'Allow access to Content Rollover Wizard';
+$string["config:enable_link"] = "Update Internal Links";
+$string["config:enable_link:desc"] = "Check this box to update internal and embedded links so that they point to the target course. If left unchecked, the links will remain pointing to the source course";
 $string['content_option1'] = 'Import a module page template';
 $string['content_option2'] = 'Import content from another module page';
-
-$string['setting_page:category'] = 'Rollover Wizard';
-
+$string['cron_schedulling_description'] = 'Tick this checkbox to enable cron schedulling to make rollover task above threshold setting below run through scheduled task. If this disabled, all rollover task will instantly executed';
 $string['emailtemplate'] = '
 Dear {FULLNAME},
 <br><br>
 A course content rollover has been completed. View the results here: {REPORT-LINK}';
+$string['importcourse'] = 'Import Content';
+$string['pluginname'] = 'Content Rollover Wizard';
+$string['replace_pluginfile_urls'] = 'Rollover Wizard - Execute Replace Pluginfile URLs';
+$string['rollover_wizard:edit'] = 'Allow access to Content Rollover Wizard';
+
+$string['setting_page:category'] = 'Rollover Wizard';
+
+$string["setting_page:limit_question"] = "Question threshold for scheduled run";
+$string["setting_page:limit_question:desc"] = "The question limit for the scheduled run must be set to ensure optimal performance";
 $string['wizard_support_company'] = 'LXI';
 $string['wizard_support_link'] = 'https://google.com';
 $string['wizard_support_text'] = 'The content import did not complete due to : <br>{NOTE}<br><p>Please contact {LINK} for support</p>';
 
-$string['cron_schedulling_description'] = 'Tick this checkbox to enable cron schedulling to make rollover task above threshold setting below run through scheduled task. If this disabled, all rollover task will instantly executed';
-
-$string["config:enable_link"] = "Update Internal Links";
-$string["config:enable_link:desc"] = "Check this box to update internal and embedded links so that they point to the target course. If left unchecked, the links will remain pointing to the source course";
 
 
-$string["setting_page:limit_question"]="Question threshold for scheduled run";
-$string["setting_page:limit_question:desc"]="The question limit for the scheduled run must be set to ensure optimal performance";
+
