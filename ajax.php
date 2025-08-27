@@ -50,7 +50,7 @@ if (!isloggedin()) {
  * @param mixed $data The data to be included in the response. Can be any data type.
  * @return void
  */
-function display_result($status = 200, $data) {
+function display_result($status, $data) {
     echo json_encode([
         'status' => 200,
         'data' => $data,
@@ -967,8 +967,6 @@ if (confirm_sesskey()) {
         $newrollover->timecreated = time();
         $newrollover->timeupdated = time();
         $DB->insert_record('local_rollover_wizard_log', $newrollover);
-
-
         if (!$iscron && !$limit) {
             $command = "php " . __DIR__ . "/rollover_wizard_background.php $taskid > /dev/null 2>&1 &";
             exec($command);
