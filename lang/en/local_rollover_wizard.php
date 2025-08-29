@@ -36,7 +36,7 @@ Dear {FULLNAME},
 A course content rollover has been completed. View the results here: {REPORT-LINK}';
 $string['importcourse'] = 'Import Content';
 $string['pluginname'] = 'Content Rollover Wizard';
-$string['replace_pluginfile_urls'] = 'Rollover Wizard - Execute Replace Pluginfile URLs';
+$string['replace_pluginfile_urls'] = 'Rollover Wizard - Replace Pluginfile URLs with File Copying';
 $string['rollover_wizard:edit'] = 'Allow access to Content Rollover Wizard';
 
 $string['setting_page:category'] = 'Rollover Wizard';

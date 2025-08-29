@@ -24,11 +24,13 @@
 namespace local_rollover_wizard\task;
 
 /**
- * Executes a rollover process.
+ * Scheduled task to replace pluginfile.php URLs with @@PLUGINFILE@@ format.
  *
- * This class is responsible for performing a calculate course size
+ * This task processes course sections containing old-format pluginfile.php URLs
+ * and converts them to Moodle's standard @@PLUGINFILE@@ placeholder format.
+ * This ensures proper file accessibility and prevents redirect issues.
  *
- * @package core\task
+ * @package local_rollover_wizard\task
  */
 class replace_pluginfile_urls extends \core\task\scheduled_task {
     /**
@@ -41,15 +43,59 @@ class replace_pluginfile_urls extends \core\task\scheduled_task {
     }
 
     /**
-     * Executes the rollover process.
+     * Executes the URL replacement process with file copying.
      *
-     * @return bool True if the rollover was successful, false otherwise.
+     * Converts old pluginfile.php URLs to @@PLUGINFILE@@ format across all
+     * course sections, with enhanced file copying and progress reporting.
+     *
+     * @return bool True if the process completed successfully, false otherwise.
      */
     public function execute() {
-        global $CFG;
+        global $DB, $CFG;
+        
         require_once($CFG->dirroot . '/local/rollover_wizard/lib.php');
-        local_rollover_wizard_replace_urls_section();
-        return true;
+        
+        mtrace('Starting pluginfile URL replacement with file copying...');
+        
+        // Get initial statistics
+        $sql = "SELECT COUNT(DISTINCT cs.course) as courses, COUNT(cs.id) as sections
+                FROM {course_sections} cs 
+                WHERE cs.summary LIKE :summary";
+        $params = ['summary' => '%pluginfile.php%'];
+        
+        $initialstats = $DB->get_record_sql($sql, $params);
+        mtrace("Found {$initialstats->sections} sections with pluginfile.php URLs across {$initialstats->courses} courses");
+        
+        if ($initialstats->sections == 0) {
+            mtrace('No sections require processing.');
+            return true;
+        }
+        
+        try {
+            // Execute the enhanced URL replacement with file copying
+            local_rollover_wizard_replace_urls_section();
+            
+            // Get final statistics
+            $finalstats = $DB->get_record_sql($sql, $params);
+            $processed = $initialstats->sections - $finalstats->sections;
+            
+            mtrace("Processing complete. Processed {$processed} sections.");
+            mtrace("Remaining sections with pluginfile.php URLs: {$finalstats->sections}");
+            
+            if ($finalstats->sections > 0) {
+                $limit = (int) get_config('local_rollover_wizard', 'replace_url_limit');
+                if ($limit > 0) {
+                    mtrace("Note: Processing limited to {$limit} sections per run. Schedule next execution to continue.");
+                }
+            }
+            
+            return true;
+            
+        } catch (\Exception $e) {
+            mtrace('Error during URL replacement: ' . $e->getMessage());
+            mtrace('Stack trace: ' . $e->getTraceAsString());
+            return false;
+        }
     }
 
     /**

@@ -232,7 +232,6 @@ function local_rollover_wizard_executerollover($mode = 1, $taskid = 0) {
     $countquiz = 0;
     $enabled = get_config("local_rollover_wizard", "update_internal_link");
     foreach ($rolloverqueues as $rolloverqueue) {
-
         $rolloverqueue = $DB->get_record('local_rollover_wizard_log', ['id' => $rolloverqueue->id]);
         $params = [
             "id" => $rolloverqueue->sourcecourseid,
@@ -419,7 +418,6 @@ function local_rollover_wizard_executerollover($mode = 1, $taskid = 0) {
                             }
                             $rc->get_plan()->get_setting($name)->set_value($value);
                         }
-
                         if (!$rc->execute_precheck()) {
                             $a = new stdclass();
                             $a->userid = $rolloverqueue->userid;
@@ -439,9 +437,7 @@ function local_rollover_wizard_executerollover($mode = 1, $taskid = 0) {
                         $targetcourse->startdate = $oldtargetcourse->startdate;
                         $targetcourse->enddate = $oldtargetcourse->enddate;
                         $targetcourse->idnumber = $oldtargetcourse->idnumber;
-
                         $DB->update_record('course', $targetcourse);
-
                         $targetcontext = \context_course::instance($targetcourse->id);
                         $sql = "SELECT itemid, filename
                         FROM {files}
@@ -631,47 +627,81 @@ function local_rollover_wizard_rewrite_summary($sourcesection, $targetsection) {
     $summary = $sourcesection->summary;
     $sourcecontext = \context_course::instance($sourcesection->course);
     $targetcontext = \context_course::instance($targetsection->course);
+    
     $doc = new DOMDocument;
     $doc->preserveWhiteSpace = false;
     @$doc->loadHTML('<?xml encoding="utf-8" ?><div>' . $summary . '</div>');
     $xpath = new DOMXpath($doc);
     $rawsrcs = ['//img/@src', '//a/@href'];
+    
     foreach ($rawsrcs as $rawsrc) {
         $srcs = $xpath->query($rawsrc);
         foreach ($srcs as $src) {
-            $nameonly = str_replace('@@PLUGINFILE@@/', '', $src->nodeValue);
-            $nameonly = explode('?', $nameonly)[0];
-            $nameonly = urldecode($nameonly);
+            $originalurl = $src->nodeValue;
+            
+            // Parse the URL to handle both @@PLUGINFILE@@ and full pluginfile.php URLs
+            $urlinfo = local_rollover_wizard_parse_file_url($originalurl);
+            
+            if (!$urlinfo || empty($urlinfo['filename'])) {
+                continue;
+            }
+            
+            // Extract just the filename for file operations
+            $filename = $urlinfo['filename'];
+            
+            // Check if file already exists in target context with correct itemid
             $sql = "SELECT itemid
                     FROM {files}
                     WHERE component='course'
                         AND filearea='section'
                         AND " . $DB->sql_compare_text('filename') . "=" . $DB->sql_compare_text(':filename') . "
-                        AND contextid=:contextid LIMIT 1";
-            $fileitemid = $DB->get_field_sql($sql, ['contextid' => $targetcontext->id, 'filename' => $nameonly]);
+                        AND contextid=:contextid
+                        AND itemid=:itemid
+                        LIMIT 1";
+            $fileitemid = $DB->get_field_sql($sql, [
+                'contextid' => $targetcontext->id, 
+                'filename' => $filename,
+                'itemid' => $targetsection->id
+            ]);
+            
             if (empty($fileitemid)) {
+                // File doesn't exist in target, need to copy it
                 $fs = get_file_storage();
-                // Get Source file.
-                $file = $fs->get_file($sourcecontext->id, 'course', 'section', $sourcesection->id, '/', $nameonly);
-                if (!$file) {
+                
+                // Try to find source file in various locations
+                $sourcefile = local_rollover_wizard_find_source_file($fs, $urlinfo, $sourcecontext, $sourcesection);
+                
+                if (!$sourcefile) {
+                    // Log the missing file for debugging
+                    debugging("Could not find source file: {$filename} in source course {$sourcesection->course}", DEBUG_DEVELOPER);
                     continue;
                 }
+                
+                // Copy file to target context with correct itemid
                 $newfilerecord = [
                     'contextid' => $targetcontext->id,
-                    'component' => $file->get_component(),
-                    'filearea' => $file->get_filearea(),
+                    'component' => 'course',
+                    'filearea' => 'section',
                     'itemid' => $targetsection->id,
-                    'filepath' => $file->get_filepath(),
-                    'filename' => $file->get_filename(),
+                    'filepath' => '/',
+                    'filename' => $filename,
                     'timecreated' => time(),
                     'timemodified' => time(),
                 ];
-                $fs->create_file_from_storedfile($newfilerecord, $file);
-
-                $fileitemid = $DB->get_field_sql($sql, ['contextid' => $targetcontext->id, 'filename' => $nameonly]);
+                
+                $newfile = $fs->create_file_from_storedfile($newfilerecord, $sourcefile);
+                
+                if ($newfile) {
+                    $fileitemid = $targetsection->id;
+                }
+            } else {
+                $fileitemid = $targetsection->id; // Ensure we use the correct target section ID
             }
+            
+            // Replace URL with proper @@PLUGINFILE@@ format
             if (!empty($fileitemid)) {
-                $summary = str_replace($src->nodeValue, '@@PLUGINFILE@@/' . $nameonly, $summary);
+                $newurl = '@@PLUGINFILE@@/' . $filename;
+                $summary = str_replace($originalurl, $newurl, $summary);
             }
         }
     }
@@ -1044,8 +1074,8 @@ function local_rollover_wizard_update_internal_links($rolloverqueue, $enabled) {
 
     $sourcecourseid = $rolloverqueue->sourcecourseid;
     $targetcourseid = $rolloverqueue->targetcourseid;
-
     $sourcesections = $DB->get_records_sql($sql, $params);
+
     // Update the name and summary of target sections.
     foreach ($sourcesections as $sourcesection) {
         $targetsection = $DB->get_record(
@@ -1061,20 +1091,24 @@ function local_rollover_wizard_update_internal_links($rolloverqueue, $enabled) {
         if (!in_array($sourcesection->section, $includedsections) && $rolloverqueue->rollovermode == 'previouscourse') {
             continue;
         }
-
-        if (!$enabled) {
+        if ($enabled) {
+            // When "Update Internal Links" is enabled, we need to copy files and rewrite URLs
+            // to ensure files are accessible in the target course context
             $targetsection->summary = local_rollover_wizard_rewrite_summary($sourcesection, $targetsection);
+            $targetsection->summaryformat = $sourcesection->summaryformat;
+        } else {
+            // When "Update Internal Links" is disabled, keep the original behavior
+            // but still copy the summary content as-is
+            $targetsection->summary = $sourcesection->summary;
             $targetsection->summaryformat = $sourcesection->summaryformat;
         }
         $targetsection->name = $sourcesection->name;
         $targetsection->visible = $sourcesection->visible;
         $targetsection->timemodified = time();
         $DB->update_record('course_sections', $targetsection);
-
         // Copy section images if course format is grid
         $sourcecourse = $DB->get_record('course', ['id' => $sourcecourseid]);
         $courseformat = course_get_format($sourcecourse);
-
         if ($courseformat->get_format() == 'grid') {
             $sourcesectionid = $sourcesection->id;
             $targetsectionid = $targetsection->id;
@@ -1094,13 +1128,8 @@ function local_rollover_wizard_update_internal_links($rolloverqueue, $enabled) {
                         $filerecord->itemid = $targetsectionid;
                         $filerecord->filename = $formatgridimage->image;
                         // $newfile = $fs->create_file_from_storedfile($filerecord, $file);
-                        $newfile = null;
                         $existingfile = $fs->get_file($targetcoursecontext->id, 'format_grid', 'sectionimage', $targetsectionid, $file->get_filepath(), $formatgridimage->image);
-                        if ($existingfile) {
-                            $newfile = $existingfile;
-                        } else {
-                            $newfile = $fs->create_file_from_storedfile($filerecord, $file);
-                        }
+                        $newfile = $existingfile ?: $fs->create_file_from_storedfile($filerecord, $file);
                         if ($newfile) {
                             // $DB->set_field('format_grid_image', 'contenthash', $newfile->get_contenthash(), array('sectionid' => $filesectionid));
                             $gridimage = $DB->get_record('format_grid_image', ['sectionid' => $targetsectionid]);
@@ -1111,14 +1140,14 @@ function local_rollover_wizard_update_internal_links($rolloverqueue, $enabled) {
                                 $gridimage->image = $formatgridimage->image;
                                 $gridimage->displayedimagestate = 0;
                                 $gridimage->contenthash = $newfile->get_contenthash();
-                                $newid = $DB->insert_record('format_grid_image', $gridimage);
+                                $DB->insert_record('format_grid_image', $gridimage);
                             } else {
                                 $gridimage->sectionid = $targetsectionid;
                                 $gridimage->courseid = $targetcourseid;
                                 $gridimage->image = $formatgridimage->image;
                                 $gridimage->displayedimagestate = 0;
                                 $gridimage->contenthash = $newfile->get_contenthash();
-                                $newid = $DB->update_record('format_grid_image', $gridimage);
+                                $DB->update_record('format_grid_image', $gridimage);
                             }
                         }
                         break;
@@ -1126,7 +1155,6 @@ function local_rollover_wizard_update_internal_links($rolloverqueue, $enabled) {
                 }
             }
         }
-
     }
 }
 
@@ -1152,7 +1180,7 @@ function get_activities_by_section($sectionid) {
  * integrity before performing operations like rollover.
  *
  * @param stdClass $course The course object.
- * @return int The total number of questions in the question bank for the course.
+ * @return array Array containing total questions count and questions array [$totalquestion, $questions].
  */
 function local_rollover_wizard_check_total_question_bank_course($course) {
     global $DB;
@@ -1197,41 +1225,520 @@ function local_rollover_wizard_check_total_question_bank_course($course) {
  */
 function local_rollover_wizard_replace_urls_section() {
     global $CFG, $DB;
-    require_once($CFG->dirroot . '/local/rollover_wizard/lib.php');
-    $limit = (int) get_config("local_rollover_wizard", "replace_url_limit");
+    require_once "{$CFG->dirroot}/local/rollover_wizard/lib.php";
+    
+    $limit = (int) get_config('local_rollover_wizard', 'replace_url_limit');
     $sql = "
-    SELECT cs.id, cs.summary, cs.course, c.fullname
+    SELECT cs.id, cs.summary, cs.course, cs.section, c.fullname
         FROM {course_sections} cs
         JOIN {course} c ON c.id = cs.course
         WHERE cs.summary LIKE :summary";
     $params = ['summary' => '%pluginfile.php%'];
     if ($limit > 0) {
-        $sql .= " LIMIT " . $limit;
+        $sql .= " LIMIT {$limit}";
     }
+    
     $sections = $DB->get_records_sql($sql, $params);
-    if (!empty($sections)) {
-        foreach ($sections as $section) {
-            $summary = $section->summary;
-            $original = $summary;
-            $pattern = '/(src|href)="([^"]*pluginfile\.php[^"]*\/([^\/"]+))"/i';
-            $summary = preg_replace_callback($pattern, function ($matches) {
-                $filename = urldecode($matches[3]);
-                return $matches[1] . '="@@PLUGINFILE@@/' . $filename . '"';
-            }, $summary);
-            if ($summary !== $original) {
-                $DB->update_record('course_sections', (object)[
-                    'id' => $section->id,
-                    'summary' => $summary,
-                ]);
-                $log = new stdClass();
-                $log->sectionid = $section->id;
-                $log->courseid = $section->course;
-                $log->oldsummary = $original;
-                $log->newsummary = $summary;
-                $log->timecreated = time();
-                $DB->insert_record('local_rollover_wizard_sectionlog', $log);
-                mtrace("Updated section ID {$section->id} in course: {$section->fullname}");
+    if (empty($sections)) {
+        mtrace("No sections with pluginfile.php URLs found.");
+        return;
+    }
+    
+    $processed_count = 0;
+    $success_count = 0;
+    $error_count = 0;
+    $files_copied = [];
+    
+    mtrace("Processing " . count($sections) . " sections with pluginfile.php URLs");
+    
+    foreach ($sections as $section) {
+        $processed_count++;
+        $summary = $section->summary;
+        $original = $summary;
+        $course_context = context_course::instance($section->course);
+        $section_files_copied = [];
+        
+        // Enhanced pattern to capture full pluginfile.php URLs
+        $pattern = '/(\w+)=["\']([^"\']*pluginfile\.php[^"\']*\/([^\/"\']+\.[^\/"\']+))["\']/i';
+        
+        $summary = preg_replace_callback($pattern, function ($matches) use ($course_context, $section, &$section_files_copied) {
+            $attribute = $matches[1];
+            $fullurl = $matches[2];
+            $filename = $matches[3];
+            
+            mtrace("  Processing URL: $fullurl");
+            
+            // Try to copy file to section filearea
+            $result = local_rollover_wizard_copy_file_to_section($fullurl, $course_context, $section->id);
+            
+            if ($result['success']) {
+                mtrace("    ✓ File copied successfully: {$result['fileinfo']['filename']}");
+                $section_files_copied[] = $result['fileinfo'];
+                return $attribute . '="' . $result['newurl'] . '"';
+            } else {
+                mtrace("    ⚠ File copy failed: {$result['error']}");
+                // Still convert URL format even if file copying failed
+                $urlinfo = local_rollover_wizard_parse_file_url($fullurl);
+                if ($urlinfo && !empty($urlinfo['filename'])) {
+                    return $attribute . '="@@PLUGINFILE@@/' . $urlinfo['filename'] . '"';
+                }
+                // Fallback to original behavior
+                $filename = urldecode($filename);
+                return $attribute . '="@@PLUGINFILE@@/' . basename($filename) . '"';
+            }
+        }, $summary);
+        
+        // Update section if summary changed
+        if ($summary !== $original) {
+            $success_count++;
+            
+            // Update the section record
+            $DB->update_record('course_sections', (object)[
+                'id' => $section->id,
+                'summary' => $summary,
+            ]);
+            
+            // Log the change
+            $log = new stdClass();
+            $log->sectionid = $section->id;
+            $log->courseid = $section->course;
+            $log->oldsummary = $original;
+            $log->newsummary = $summary;
+            $log->timecreated = time();
+            $DB->insert_record('local_rollover_wizard_sectionlog', $log);
+            
+            if (!empty($section_files_copied)) {
+                $files_copied = array_merge($files_copied, $section_files_copied);
+            }
+            
+            mtrace("✓ Updated section {$section->section} (ID: {$section->id}) in course: {$section->fullname}");
+        } else {
+            mtrace("- No changes needed for section {$section->section} (ID: {$section->id})");
+        }
+    }
+    
+    // Summary report
+    mtrace("\n=== Processing Complete ===");
+    mtrace("Sections processed: $processed_count");
+    mtrace("Sections updated: $success_count");
+    mtrace("Files copied: " . count($files_copied));
+    
+    if (!empty($files_copied)) {
+        mtrace("\nFiles copied:");
+        foreach ($files_copied as $file) {
+            mtrace("  - {$file['filename']} ({$file['filesize']} bytes)");
+        }
+    }
+}
+
+/**
+ * Parse a file URL to extract components for rollover processing.
+ *
+ * Handles both @@PLUGINFILE@@ URLs and full pluginfile.php URLs
+ * from various contexts and formats used in different rollover generations.
+ *
+ * @param string $url The URL to parse
+ * @return array|false Array with parsed components or false if not a valid file URL
+ */
+function local_rollover_wizard_parse_file_url($url) {
+    if (empty($url)) {
+        return false;
+    }
+    
+    // Handle @@PLUGINFILE@@ URLs
+    if (strpos($url, '@@PLUGINFILE@@/') !== false) {
+        $filename = str_replace('@@PLUGINFILE@@/', '', $url);
+        $filename = explode('?', $filename)[0]; // Remove query parameters
+        $filename = urldecode($filename);
+        
+        // Extract just the filename if it contains path components
+        $filename = basename($filename);
+        
+        return [
+            'type' => 'pluginfile_placeholder',
+            'filename' => $filename,
+            'original_path' => $url
+        ];
+    }
+    
+    // Handle full pluginfile.php URLs
+    if (strpos($url, 'pluginfile.php') !== false) {
+        // Pattern to match various pluginfile.php URL formats
+        $pattern = '/pluginfile\.php\/(\d+)\/([^\/]+)\/([^\/]+)\/([^\/]*)\/?(.+?)(?:\?.*)?$/i';
+        
+        if (preg_match($pattern, $url, $matches)) {
+            $contextid = $matches[1];
+            $component = $matches[2];
+            $filearea = $matches[3];
+            $itemid = $matches[4];
+            $filename = $matches[5];
+            
+            // Handle cases where filename might have additional path components
+            $filename = basename($filename);
+            $filename = urldecode($filename);
+            
+            return [
+                'type' => 'pluginfile_full',
+                'contextid' => $contextid,
+                'component' => $component,
+                'filearea' => $filearea,
+                'itemid' => $itemid,
+                'filename' => $filename,
+                'original_path' => $url
+            ];
+        }
+        
+        // Fallback pattern for simpler URLs
+        $pattern = '/pluginfile\.php.*?\/([^\/\?\&"\']+\.[^\/\?\&"\']+)/i';
+        if (preg_match($pattern, $url, $matches)) {
+            $filename = urldecode($matches[1]);
+            $filename = basename($filename);
+            
+            return [
+                'type' => 'pluginfile_simple',
+                'filename' => $filename,
+                'original_path' => $url
+            ];
+        }
+    }
+    
+    return false;
+}
+
+/**
+ * Find source file in various possible locations based on URL information.
+ *
+ * This function implements a comprehensive search strategy to handle
+ * files from different rollover generations and storage patterns.
+ *
+ * @param file_storage $fs File storage instance
+ * @param array $urlinfo Parsed URL information from local_rollover_wizard_parse_file_url
+ * @param context_course $sourcecontext Source course context
+ * @param stdClass $sourcesection Source section object
+ * @return stored_file|false The found file or false if not found
+ */
+function local_rollover_wizard_find_source_file($fs, $urlinfo, $sourcecontext, $sourcesection) {
+    $filename = $urlinfo['filename'];
+    
+    // Search strategy 1: Look in source section with section ID as itemid
+    $file = $fs->get_file($sourcecontext->id, 'course', 'section', $sourcesection->id, '/', $filename);
+    if ($file && !$file->is_directory()) {
+        return $file;
+    }
+    
+    // Search strategy 2: If we have context info from URL, try that exact location first
+    if (isset($urlinfo['contextid']) && isset($urlinfo['itemid'])) {
+        $file = $fs->get_file(
+            $urlinfo['contextid'], 
+            $urlinfo['component'], 
+            $urlinfo['filearea'], 
+            $urlinfo['itemid'], 
+            '/', 
+            $filename
+        );
+        if ($file && !$file->is_directory()) {
+            return $file;
+        }
+    }
+    
+    // Search strategy 3: Look for files in the source course context with any itemid
+    $files = $fs->get_area_files($sourcecontext->id, 'course', 'section', false, '', false);
+    foreach ($files as $file) {
+        if ($file->get_filename() === $filename && !$file->is_directory()) {
+            return $file;
+        }
+    }
+    
+    // Search strategy 4: Look in user draft areas (for very old files)
+    $sql = "SELECT DISTINCT f.contextid, f.itemid
+            FROM {files} f
+            WHERE f.component = 'user'
+                AND f.filearea = 'draft'
+                AND f.filename = :filename";
+    global $DB;
+    $draftfiles = $DB->get_records_sql($sql, ['filename' => $filename]);
+    
+    foreach ($draftfiles as $draftfile) {
+        $file = $fs->get_file($draftfile->contextid, 'user', 'draft', $draftfile->itemid, '/', $filename);
+        if ($file && !$file->is_directory()) {
+            return $file;
+        }
+    }
+    
+    return false;
+}
+
+/**
+ * Validate that a file is accessible in its target context.
+ *
+ * This function checks if a file exists and is accessible in the target course
+ * context, helping to identify broken file references after rollover.
+ *
+ * @param int $contextid Target context ID
+ * @param string $component File component (usually 'course')
+ * @param string $filearea File area (usually 'section')  
+ * @param int $itemid Item ID (usually section ID)
+ * @param string $filename Filename to check
+ * @return bool True if file is accessible, false otherwise
+ */
+function local_rollover_wizard_validate_file_access($contextid, $component, $filearea, $itemid, $filename) {
+    $fs = get_file_storage();
+    $file = $fs->get_file($contextid, $component, $filearea, $itemid, '/', $filename);
+    
+    if (!$file || $file->is_directory()) {
+        return false;
+    }
+    
+    // Additional check: verify context exists and is valid
+    try {
+        $context = \context::instance_by_id($contextid);
+        if (!$context) {
+            return false;
+        }
+    } catch (Exception $e) {
+        return false;
+    }
+    
+    return true;
+}
+
+/**
+ * Fix broken file URLs in existing courses by updating their context and itemid references.
+ *
+ * This migration function identifies and fixes file URLs that point to incorrect
+ * contexts or itemids, ensuring files are accessible after rollover operations.
+ *
+ * @param int|null $courseid Optional specific course to fix, or null for all courses
+ * @return array Report of fixed URLs
+ */
+function local_rollover_wizard_fix_broken_file_urls($courseid = null) {
+    global $DB;
+    
+    $report = [
+        'sections_processed' => 0,
+        'urls_fixed' => 0,
+        'errors' => []
+    ];
+    
+    $sql = "SELECT cs.id, cs.summary, cs.course, cs.section
+            FROM {course_sections} cs";
+    $params = [];
+    
+    if ($courseid) {
+        $sql .= " WHERE cs.course = :courseid AND cs.summary LIKE :summary";
+        $params['courseid'] = $courseid;
+    } else {
+        $sql .= " WHERE cs.summary LIKE :summary";
+    }
+    $params['summary'] = '%@@PLUGINFILE@@%';
+    
+    $sections = $DB->get_records_sql($sql, $params);
+    
+    foreach ($sections as $section) {
+        $report['sections_processed']++;
+        $original_summary = $section->summary;
+        $updated_summary = $section->summary;
+        
+        // Find all @@PLUGINFILE@@ references
+        $pattern = '/@@PLUGINFILE@@\/([^"\'\s]+\.[^"\'\s]+)/i';
+        preg_match_all($pattern, $section->summary, $matches, PREG_SET_ORDER);
+        
+        $coursecontext = \context_course::instance($section->course);
+        
+        foreach ($matches as $match) {
+            $filename = $match[1];
+            
+            // Check if file is accessible in current section
+            if (!local_rollover_wizard_validate_file_access(
+                $coursecontext->id, 
+                'course', 
+                'section', 
+                $section->id, 
+                $filename
+            )) {
+                // File not accessible, try to find and fix it
+                $fs = get_file_storage();
+                $files = $fs->get_area_files($coursecontext->id, 'course', 'section', false, '', false);
+                
+                $fixed = false;
+                foreach ($files as $file) {
+                    if ($file->get_filename() === $filename) {
+                        // Found the file, check if it needs itemid update
+                        if ($file->get_itemid() != $section->id) {
+                            // Copy to correct itemid
+                            $newfilerecord = [
+                                'contextid' => $coursecontext->id,
+                                'component' => 'course',
+                                'filearea' => 'section',
+                                'itemid' => $section->id,
+                                'filepath' => '/',
+                                'filename' => $filename,
+                                'timecreated' => time(),
+                                'timemodified' => time(),
+                            ];
+                            
+                            try {
+                                $fs->create_file_from_storedfile($newfilerecord, $file);
+                                $report['urls_fixed']++;
+                                $fixed = true;
+                                break;
+                            } catch (Exception $e) {
+                                $report['errors'][] = "Failed to fix file {$filename} in section {$section->id}: " . $e->getMessage();
+                            }
+                        }
+                    }
+                }
+                
+                if (!$fixed) {
+                    $report['errors'][] = "Could not find file {$filename} for section {$section->id} in course {$section->course}";
+                }
+            }
+        }
+        
+        // Update section if summary changed
+        if ($updated_summary !== $original_summary) {
+            $DB->update_record('course_sections', (object)[
+                'id' => $section->id,
+                'summary' => $updated_summary
+            ]);
+        }
+    }
+    
+    return $report;
+}
+
+/**
+ * Copy file from source location to target section filearea with enhanced URL replacement.
+ *
+ * This function finds a file referenced by a pluginfile.php URL and copies it to the
+ * appropriate section filearea, then returns the @@PLUGINFILE@@ replacement URL.
+ *
+ * @param string $originalurl The original pluginfile.php URL
+ * @param context_course $targetcontext Target course context
+ * @param int $targetsectionid Target section ID
+ * @return array Result with status, new URL, and file info
+ */
+function local_rollover_wizard_copy_file_to_section($originalurl, $targetcontext, $targetsectionid) {
+    $fs = get_file_storage();
+    
+    // Parse the original URL
+    $urlinfo = local_rollover_wizard_parse_file_url($originalurl);
+    if (!$urlinfo || empty($urlinfo['filename'])) {
+        return [
+            'success' => false,
+            'error' => 'Could not parse URL',
+            'newurl' => $originalurl
+        ];
+    }
+    
+    $filename = $urlinfo['filename'];
+    
+    // Try to find the source file using existing find function
+    $sourcesection = new stdClass();
+    $sourcesection->id = isset($urlinfo['itemid']) ? $urlinfo['itemid'] : 0;
+    
+    $sourcefile = null;
+    
+    // If we have context info from URL, try that exact location first
+    if (isset($urlinfo['contextid']) && isset($urlinfo['itemid'])) {
+        $sourcefile = $fs->get_file(
+            $urlinfo['contextid'], 
+            $urlinfo['component'], 
+            $urlinfo['filearea'], 
+            $urlinfo['itemid'], 
+            '/', 
+            $filename
+        );
+        
+        if (!$sourcefile || $sourcefile->is_directory()) {
+            $sourcefile = null;
+        }
+    }
+    
+    // If not found, try to find in the target course context (common case)
+    if (!$sourcefile) {
+        $files = $fs->get_area_files($targetcontext->id, 'course', 'section', false, '', false);
+        foreach ($files as $file) {
+            if ($file->get_filename() === $filename && !$file->is_directory()) {
+                $sourcefile = $file;
+                break;
             }
         }
     }
+    
+    // If still not found, search across other course contexts
+    if (!$sourcefile) {
+        global $DB;
+        $sql = "SELECT DISTINCT f.contextid, f.component, f.filearea, f.itemid
+                FROM {files} f
+                WHERE f.filename = :filename
+                    AND f.component IN ('course', 'mod_assign', 'mod_page', 'mod_forum', 'mod_quiz')
+                    AND f.filesize > 0";
+        
+        $filelocations = $DB->get_records_sql($sql, ['filename' => $filename]);
+        
+        foreach ($filelocations as $location) {
+            $sourcefile = $fs->get_file(
+                $location->contextid,
+                $location->component,
+                $location->filearea,
+                $location->itemid,
+                '/',
+                $filename
+            );
+            
+            if ($sourcefile && !$sourcefile->is_directory()) {
+                break;
+            }
+            $sourcefile = null;
+        }
+    }
+    
+    if (!$sourcefile) {
+        return [
+            'success' => false,
+            'error' => "Source file not found: $filename",
+            'newurl' => $originalurl
+        ];
+    }
+    
+    // Check if file already exists in target location
+    $targetfile = $fs->get_file($targetcontext->id, 'course', 'section', $targetsectionid, '/', $filename);
+    
+    if (!$targetfile) {
+        // Copy file to target section
+        $filerecord = [
+            'contextid' => $targetcontext->id,
+            'component' => 'course',
+            'filearea' => 'section',
+            'itemid' => $targetsectionid,
+            'filepath' => '/',
+            'filename' => $filename,
+            'userid' => $sourcefile->get_userid(),
+            'author' => $sourcefile->get_author(),
+            'license' => $sourcefile->get_license()
+        ];
+        
+        try {
+            $targetfile = $fs->create_file_from_storedfile($filerecord, $sourcefile);
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'error' => 'Failed to copy file: ' . $e->getMessage(),
+                'newurl' => $originalurl
+            ];
+        }
+    }
+    
+    return [
+        'success' => true,
+        'error' => null,
+        'newurl' => "@@PLUGINFILE@@/$filename",
+        'fileinfo' => [
+            'filename' => $filename,
+            'source_context' => $sourcefile->get_contextid(),
+            'target_context' => $targetcontext->id,
+            'filesize' => $sourcefile->get_filesize()
+        ]
+    ];
 }
