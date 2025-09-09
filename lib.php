@@ -1312,6 +1312,7 @@ function local_rollover_wizard_replace_urls_section() {
             }
             
             mtrace("✓ Updated section {$section->section} (ID: {$section->id}) in course: {$section->fullname}");
+            rebuild_course_cache($section->course, true);
         } else {
             mtrace("- No changes needed for section {$section->section} (ID: {$section->id})");
         }
