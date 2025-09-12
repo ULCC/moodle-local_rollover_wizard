@@ -52,45 +52,49 @@ class replace_pluginfile_urls extends \core\task\scheduled_task {
      */
     public function execute() {
         global $DB, $CFG;
-        
+
         require_once($CFG->dirroot . '/local/rollover_wizard/lib.php');
-        
+
         mtrace('Starting pluginfile URL replacement with file copying...');
-        
-        // Get initial statistics
+
+        // Get initial statistics - more accurate pattern for HTML attributes containing pluginfile.php
         $sql = "SELECT COUNT(DISTINCT cs.course) as courses, COUNT(cs.id) as sections
-                FROM {course_sections} cs 
-                WHERE cs.summary LIKE :summary";
-        $params = ['summary' => '%pluginfile.php%'];
-        
+                FROM {course_sections} cs
+                WHERE (cs.summary REGEXP :href_pattern
+                   OR cs.summary REGEXP :src_pattern)";
+        $params = [
+            'href_pattern' => 'href=["\'][^"\']*pluginfile\\.php[^"\']*["\']',
+            'src_pattern' => 'src=["\'][^"\']*pluginfile\\.php[^"\']*["\']'
+        ];
+
         $initialstats = $DB->get_record_sql($sql, $params);
         mtrace("Found {$initialstats->sections} sections with pluginfile.php URLs across {$initialstats->courses} courses");
-        
+
         if ($initialstats->sections == 0) {
             mtrace('No sections require processing.');
             return true;
         }
-        
+
         try {
             // Execute the enhanced URL replacement with file copying
             local_rollover_wizard_replace_urls_section();
-            
-            // Get final statistics
+
+            // Get final statistics using the same improved pattern
             $finalstats = $DB->get_record_sql($sql, $params);
             $processed = $initialstats->sections - $finalstats->sections;
-            
+
             mtrace("Processing complete. Processed {$processed} sections.");
             mtrace("Remaining sections with pluginfile.php URLs: {$finalstats->sections}");
-            
+
             if ($finalstats->sections > 0) {
                 $limit = (int) get_config('local_rollover_wizard', 'replace_url_limit');
                 if ($limit > 0) {
                     mtrace("Note: Processing limited to {$limit} sections per run. Schedule next execution to continue.");
                 }
             }
-            
+
             return true;
-            
+
         } catch (\Exception $e) {
             mtrace('Error during URL replacement: ' . $e->getMessage());
             mtrace('Stack trace: ' . $e->getTraceAsString());
