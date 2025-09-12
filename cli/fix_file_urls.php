@@ -80,12 +80,12 @@ cli_heading('Rollover Wizard File URL Repair Tool');
 $courseid = null;
 if ($options['course']) {
     $courseid = (int)$options['course'];
-    
+
     // Validate course exists.
     if (!$DB->record_exists('course', ['id' => $courseid])) {
         cli_error("Error: Course with ID {$courseid} does not exist.");
     }
-    
+
     $course = $DB->get_record('course', ['id' => $courseid]);
     cli_writeln("Target course: {$course->fullname} (ID: {$courseid})");
 } else {
@@ -120,14 +120,14 @@ if (!$options['dry-run']) {
     $report = [
         'sections_processed' => 0,
         'urls_fixed' => 0,
-        'errors' => []
+        'errors' => [],
     ];
-    
+
     // Get sections that would be processed.
     $sql = "SELECT cs.id, cs.summary, cs.course, cs.section
             FROM {course_sections} cs";
     $params = [];
-    
+
     if ($courseid) {
         $sql .= " WHERE cs.course = :courseid AND cs.summary LIKE :summary";
         $params['courseid'] = $courseid;
@@ -135,31 +135,31 @@ if (!$options['dry-run']) {
         $sql .= " WHERE cs.summary LIKE :summary";
     }
     $params['summary'] = '%@@PLUGINFILE@@%';
-    
+
     $sections = $DB->get_records_sql($sql, $params);
-    
+
     foreach ($sections as $section) {
         $report['sections_processed']++;
-        
+
         // Find all @@PLUGINFILE@@ references.
         $pattern = '/@@PLUGINFILE@@\/([^"\'\s]+\.[^"\'\s]+)/i';
         preg_match_all($pattern, $section->summary, $matches, PREG_SET_ORDER);
-        
+
         if ($options['verbose']) {
             cli_writeln("Section {$section->id} (Course {$section->course}): " . count($matches) . " file references");
         }
-        
+
         $coursecontext = \context_course::instance($section->course);
-        
+
         foreach ($matches as $match) {
             $filename = $match[1];
-            
+
             // Check if file is accessible.
             if (!local_rollover_wizard_validate_file_access(
-                $coursecontext->id, 
-                'course', 
-                'section', 
-                $section->id, 
+                $coursecontext->id,
+                'course',
+                'section',
+                $section->id,
                 $filename
             )) {
                 $report['urls_fixed']++;
