@@ -1232,7 +1232,9 @@ function local_rollover_wizard_replace_urls_section() {
     SELECT cs.id, cs.summary, cs.course, cs.section, c.fullname
         FROM {course_sections} cs
         JOIN {course} c ON c.id = cs.course
-        WHERE (cs.summary REGEXP :href_pattern
+        LEFT JOIN {local_rollover_wizard_sectionlog} rsl ON rsl.sectionid = cs.id
+        WHERE rsl.id IS NULL
+          AND (cs.summary REGEXP :href_pattern
            OR cs.summary REGEXP :src_pattern)";
     $params = [
         'href_pattern' => 'href=[\"\'][^\"\']*pluginfile\\.php[^\"\']*[\"\']',
