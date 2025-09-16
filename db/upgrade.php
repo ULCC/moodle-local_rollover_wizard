@@ -189,5 +189,18 @@ function xmldb_local_rollover_wizard_upgrade($oldversion) {
         }
         upgrade_plugin_savepoint(true, 2025072900, 'local', 'rollover_wizard');
     }
+
+    if ($oldversion < 2025091500) {
+        // Add index on sectionid for better LEFT JOIN performance in URL replacement queries.
+        $table = new xmldb_table('local_rollover_wizard_sectionlog');
+        $index = new xmldb_index('sectionid_idx', XMLDB_INDEX_NOTUNIQUE, ['sectionid']);
+
+        // Conditionally add index.
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        upgrade_plugin_savepoint(true, 2025091500, 'local', 'rollover_wizard');
+    }
     return true;
 }

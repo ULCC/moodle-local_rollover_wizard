@@ -58,10 +58,14 @@ class replace_pluginfile_urls extends \core\task\scheduled_task {
         mtrace('Starting pluginfile URL replacement with file copying...');
 
         // Get initial statistics - more accurate pattern for HTML attributes containing pluginfile.php
+        // Exclude sections already processed (logged in sectionlog table)
+        $limit = (int) get_config('local_rollover_wizard', 'replace_url_limit');
         $sql = "SELECT COUNT(DISTINCT cs.course) as courses, COUNT(cs.id) as sections
                 FROM {course_sections} cs
-                WHERE (cs.summary REGEXP :href_pattern
-                   OR cs.summary REGEXP :src_pattern)";
+                LEFT JOIN {local_rollover_wizard_sectionlog} rsl ON rsl.sectionid = cs.id
+                WHERE rsl.id IS NULL
+                  AND (cs.summary REGEXP :href_pattern
+                   OR cs.summary REGEXP :src_pattern) LIMIT {$limit}";
         $params = [
             'href_pattern' => 'href=["\'][^"\']*pluginfile\\.php[^"\']*["\']',
             'src_pattern' => 'src=["\'][^"\']*pluginfile\\.php[^"\']*["\']'
