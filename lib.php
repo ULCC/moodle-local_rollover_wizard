@@ -706,6 +706,17 @@ function local_rollover_wizard_rewrite_summary($sourcesection, $targetsection) {
         }
     }
 
+    // Get the source and target course IDs
+    $sourceid = (int)$sourcesection->course;
+    $targetid = (int)$targetsection->course;
+
+    // Build a regex pattern to match internal Moodle course links such as:
+    // "course/view.php?id={sourceid}" and replace them with the new target course ID.
+    $pattern = '/(course\/view\.php\?id=)' . $sourceid . '\b/';
+    $replacement = '${1}' . $targetid;
+
+    // Apply the replacement to update all internal course links within the summary
+    $summary = preg_replace($pattern, $replacement, $summary);
     return $summary;
 }
 /**
@@ -1091,21 +1102,24 @@ function local_rollover_wizard_update_internal_links($rolloverqueue, $enabled) {
         if (!in_array($sourcesection->section, $includedsections) && $rolloverqueue->rollovermode == 'previouscourse') {
             continue;
         }
-        if ($enabled) {
-            // When "Update Internal Links" is enabled, we need to copy files and rewrite URLs
-            // to ensure files are accessible in the target course context
-            $targetsection->summary = local_rollover_wizard_rewrite_summary($sourcesection, $targetsection);
-            $targetsection->summaryformat = $sourcesection->summaryformat;
-        } else {
-            // When "Update Internal Links" is disabled, keep the original behavior
-            // but still copy the summary content as-is
-            $targetsection->summary = $sourcesection->summary;
-            $targetsection->summaryformat = $sourcesection->summaryformat;
+
+        if (trim($sourcesection->summary) !== '') {
+            if ($enabled) {
+                // When "Update Internal Links" is enabled, we need to copy files and rewrite URLs
+                // to ensure files are accessible in the target course context
+                $targetsection->summary = local_rollover_wizard_rewrite_summary($sourcesection, $targetsection);
+                $targetsection->summaryformat = $sourcesection->summaryformat;
+            } else {
+                // When disabled, we simply copy the summary as-is without rewriting URLs
+                $targetsection->summary = $sourcesection->summary;
+                $targetsection->summaryformat = $sourcesection->summaryformat;
+            }
         }
         $targetsection->name = $sourcesection->name;
         $targetsection->visible = $sourcesection->visible;
         $targetsection->timemodified = time();
         $DB->update_record('course_sections', $targetsection);
+
         // Copy section images if course format is grid
         $sourcecourse = $DB->get_record('course', ['id' => $sourcecourseid]);
         $courseformat = course_get_format($sourcecourse);
@@ -1127,7 +1141,6 @@ function local_rollover_wizard_update_internal_links($rolloverqueue, $enabled) {
                         $filerecord->filearea = 'sectionimage';
                         $filerecord->itemid = $targetsectionid;
                         $filerecord->filename = $formatgridimage->image;
-                        // $newfile = $fs->create_file_from_storedfile($filerecord, $file);
                         $existingfile = $fs->get_file($targetcoursecontext->id, 'format_grid', 'sectionimage', $targetsectionid, $file->get_filepath(), $formatgridimage->image);
                         $newfile = $existingfile ?: $fs->create_file_from_storedfile($filerecord, $file);
                         if ($newfile) {
@@ -1238,7 +1251,7 @@ function local_rollover_wizard_replace_urls_section() {
            OR cs.summary REGEXP :src_pattern)";
     $params = [
         'href_pattern' => 'href=[\"\'][^\"\']*pluginfile\\.php[^\"\']*[\"\']',
-        'src_pattern' => 'src=[\"\'][^\"\']*pluginfile\\.php[^\"\']*[\"\']'
+        'src_pattern' => 'src=[\"\'][^\"\']*pluginfile\\.php[^\"\']*[\"\']',
     ];
     if ($limit > 0) {
         $sql .= " LIMIT {$limit}";
@@ -1349,7 +1362,7 @@ function local_rollover_wizard_parse_file_url($url) {
         return false;
     }
 
-    // Handle @@PLUGINFILE@@ URLs
+    // Handle @@PLUGINFILE@@ URLs.
     if (strpos($url, '@@PLUGINFILE@@/') !== false) {
         $filename = str_replace('@@PLUGINFILE@@/', '', $url);
         $filename = explode('?', $filename)[0]; // Remove query parameters
