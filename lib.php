@@ -706,17 +706,7 @@ function local_rollover_wizard_rewrite_summary($sourcesection, $targetsection) {
         }
     }
 
-    // Get the source and target course IDs
-    $sourceid = (int)$sourcesection->course;
-    $targetid = (int)$targetsection->course;
-
-    // Build a regex pattern to match internal Moodle course links such as:
-    // "course/view.php?id={sourceid}" and replace them with the new target course ID.
-    $pattern = '/(course\/view\.php\?id=)' . $sourceid . '\b/';
-    $replacement = '${1}' . $targetid;
-
-    // Apply the replacement to update all internal course links within the summary
-    $summary = preg_replace($pattern, $replacement, $summary);
+    $summary = local_rollover_wizard_rewrite_summary_hyperlink_section($sourcesection, $targetsection);
     return $summary;
 }
 /**
@@ -1058,6 +1048,60 @@ function local_rollover_wizard_get_htmlblocks_by_course($courseid) {
     return $coursehtmlblocks;
 }
 
+/**
+ * Rewrite internal hyperlinks in a section summary during course rollover.
+ *
+ * This function updates internal links in a section summary when duplicating or rolling over
+ * a course. It rewrites:
+ *  - Course links (course/view.php?id={sourceid}) to point to the new course ID.
+ *  - Section links (course/section.php?id={sectionid}) to match section IDs in the target course
+ *    based on section number (position).
+ *
+ * @param stdClass $sourcesection The section object from the source course.
+ * @param stdClass $targetsection The corresponding section object in the target course.
+ * @return string The updated summary content with rewritten links.
+ */
+function local_rollover_wizard_rewrite_summary_hyperlink_section($sourcesection, $targetsection) {
+    global $DB;
+    $summary = $sourcesection->summary;
+    
+    // Get the source and target course IDs
+    $sourceid = (int)$sourcesection->course;
+    $targetid = (int)$targetsection->course;
+    
+
+    // "course/view.php?id={sourceid}" and replace them with the new target course ID.
+    $pattern = '/(course\/view\.php\?id=)' . $sourceid . '\b/';
+    $replacement = '${1}' . $targetid;
+    $summary = preg_replace($pattern, $replacement, $summary);
+
+    // "course/section.php?id={sourceid}" and replace them with the new target course ID.
+    $summary = preg_replace_callback(
+        '#(?:https?:\/\/[^\s"\'<>]+/)?course/section\.php\?id=(\d+)#',
+        function ($matches) use ($DB, $sourceid, $targetid) {
+            $srcsectionid = (int)$matches[1];
+
+            // Find source section record.
+            if (!$srcsection = $DB->get_record('course_sections', ['id' => $srcsectionid, 'course' => $sourceid])) {
+                mtrace("Section ID $srcsectionid not found in source course $sourceid");
+                return $matches[0];
+            }
+
+            $sectionnum = $srcsection->section;
+
+            // Find matching section in the target course with the same section number.
+            if ($targetsection = $DB->get_record('course_sections', ['course' => $targetid, 'section' => $sectionnum])) {
+                mtrace("Rewriting section link from ID $srcsectionid to ID {$targetsection->id}");
+                return str_replace("id={$srcsectionid}", "id={$targetsection->id}", $matches[0]);
+            }
+            return $matches[0];
+        },
+        $summary
+    );
+
+    mtrace("Updated summary for section {$targetsection->id}: $summary");
+    return $summary;
+}
 
 /**
  * Updates internal course section links during the rollover wizard process.
@@ -1105,6 +1149,7 @@ function local_rollover_wizard_update_internal_links($rolloverqueue, $enabled) {
 
         if (trim($sourcesection->summary) !== '') {
             if ($enabled) {
+
                 // When "Update Internal Links" is enabled, we need to copy files and rewrite URLs
                 // to ensure files are accessible in the target course context
                 $targetsection->summary = local_rollover_wizard_rewrite_summary($sourcesection, $targetsection);
@@ -1115,6 +1160,7 @@ function local_rollover_wizard_update_internal_links($rolloverqueue, $enabled) {
                 $targetsection->summaryformat = $sourcesection->summaryformat;
             }
         }
+
         $targetsection->name = $sourcesection->name;
         $targetsection->visible = $sourcesection->visible;
         $targetsection->timemodified = time();
