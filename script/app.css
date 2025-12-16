@@ -1,3 +1,8 @@
 li[data-key="rolloverwizard"] > a::before {
     content: none !important;
 }
+.activity-not-imported {
+    color: #851704;
+    font-size: 0.85em;
+    margin-left: 4px;
+}

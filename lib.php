@@ -1063,11 +1063,12 @@ function local_rollover_wizard_get_htmlblocks_by_course($courseid) {
  */
 function local_rollover_wizard_rewrite_summary_hyperlink_section($sourcesection, $targetsection) {
     global $DB;
-    $summary = $sourcesection->summary;
+    $summary = $targetsection->summary;
     
     // Get the source and target course IDs
     $sourceid = (int)$sourcesection->course;
     $targetid = (int)$targetsection->course;
+    $idtargetsection = (int)$targetsection->id;
     
 
     // "course/view.php?id={sourceid}" and replace them with the new target course ID.
@@ -1077,31 +1078,84 @@ function local_rollover_wizard_rewrite_summary_hyperlink_section($sourcesection,
 
     // "course/section.php?id={sourceid}" and replace them with the new target course ID.
     $summary = preg_replace_callback(
-        '#(?:https?:\/\/[^\s"\'<>]+/)?course/section\.php\?id=(\d+)#',
-        function ($matches) use ($DB, $sourceid, $targetid) {
-            $srcsectionid = (int)$matches[1];
+    '#(?:https?:\/\/[^\s"\'<>]+)?\/mod\/([a-zA-Z0-9_]+)\/view\.php\?id=(\d+)(?:&[a-zA-Z0-9_=&]+)?#',
+    function ($matches) use ($DB, $sourceid, $targetid,$idtargetsection) {
 
-            // Find source section record.
-            if (!$srcsection = $DB->get_record('course_sections', ['id' => $srcsectionid, 'course' => $sourceid])) {
-                mtrace("Section ID $srcsectionid not found in source course $sourceid");
-                return $matches[0];
-            }
+        $modname = $matches[1];
+        $oldcmid = (int)$matches[2];
 
-            $sectionnum = $srcsection->section;
+        mtrace("Processing link: {$matches[0]}");
+        mtrace("Module: {$modname}, oldcmid: {$oldcmid}");
+        $oldcm = $DB->get_record('course_modules',
+        ['id' => $oldcmid]);
 
-            // Find matching section in the target course with the same section number.
-            if ($targetsection = $DB->get_record('course_sections', ['course' => $targetid, 'section' => $sectionnum])) {
-                mtrace("Rewriting section link from ID $srcsectionid to ID {$targetsection->id}");
-                return str_replace("id={$srcsectionid}", "id={$targetsection->id}", $matches[0]);
-            }
+        if (!$oldcm) {
+            return $matches[0] . '__NOT_IMPORTED__';
+        }
+
+        if ((int)$oldcm->course !== (int)$sourceid) {
             return $matches[0];
-        },
-        $summary
+
+        }
+
+        $module = $DB->get_record('modules', ['name' => $modname]);
+        if (!$module) {
+            mtrace("Module not found");
+            return $matches[0] . '__NOT_IMPORTED__';
+
+        }
+        $instancetable = $modname;
+        if (!$DB->get_manager()->table_exists($instancetable)) {
+            mtrace("instancetable not found");
+            return $matches[0] . '__NOT_IMPORTED__';
+
+        }
+
+        $oldinstance = $DB->get_record($instancetable, ['id' => $oldcm->instance]);
+        if (!$oldinstance) {
+            mtrace("oldinstance not found");
+            return $matches[0] . '__NOT_IMPORTED__';
+
+        }
+
+        $newinstance = $DB->get_record($instancetable, [
+            'course' => $targetid,
+            'name'   => $oldinstance->name
+        ]);
+
+        if (!$newinstance) {
+            return $matches[0] . '__NOT_IMPORTED__';
+
+        }
+        
+        $newcm = $DB->get_record('course_modules', [
+            'course'   => $targetid,
+            'module'   => $module->id,
+            'instance' => $newinstance->id,
+            'section'  => $idtargetsection
+        ]);
+
+        if (!$newcm) {
+            return $matches[0] . '__NOT_IMPORTED__';
+        }
+
+
+        return str_replace("id={$oldcmid}", "id={$newcm->id}", $matches[0]);
+    },
+    $summary
     );
 
+    $summary = preg_replace(
+    '#(<a[^>]+__NOT_IMPORTED__[^"]*"[^>]*>.*?</a>)#',
+    '$1 <span class="activity-not-imported">(link to source course – activity not imported)</span>',
+    $summary
+    );
+    $summary = str_replace('__NOT_IMPORTED__', '', $summary);
+    
     mtrace("Updated summary for section {$targetsection->id}: $summary");
     return $summary;
 }
+
 
 /**
  * Updates internal course section links during the rollover wizard process.
@@ -1140,27 +1194,33 @@ function local_rollover_wizard_update_internal_links($rolloverqueue, $enabled) {
                 'section' => $sourcesection->section,
             ]
         );
+
         if (!$targetsection) {
             continue;
         }
         if (!in_array($sourcesection->section, $includedsections) && $rolloverqueue->rollovermode == 'previouscourse') {
             continue;
         }
+        mtrace("Summary from source course : {$sourcesection->summary}");
+        mtrace("Summary from target course : {$targetsection->summary}");
 
-        if (trim($sourcesection->summary) !== '') {
-            if ($enabled) {
+        if ($enabled) {
 
-                // When "Update Internal Links" is enabled, we need to copy files and rewrite URLs
-                // to ensure files are accessible in the target course context
-                $targetsection->summary = local_rollover_wizard_rewrite_summary($sourcesection, $targetsection);
-                $targetsection->summaryformat = $sourcesection->summaryformat;
-            } else {
-                // When disabled, we simply copy the summary as-is without rewriting URLs
+            if (trim($targetsection->summary) === '') {
                 $targetsection->summary = $sourcesection->summary;
                 $targetsection->summaryformat = $sourcesection->summaryformat;
             }
-        }
+            $targetsection->summary = local_rollover_wizard_rewrite_summary(
+                $sourcesection,
+                $targetsection
+            );
 
+        } else {
+            mtrace("Skipping URL rewriting for section {$sourcesection->id} as the feature is disabled.");
+            $targetsection->summary = $sourcesection->summary;
+            $targetsection->summaryformat = $sourcesection->summaryformat;
+        }
+        
         $targetsection->name = $sourcesection->name;
         $targetsection->visible = $sourcesection->visible;
         $targetsection->timemodified = time();
