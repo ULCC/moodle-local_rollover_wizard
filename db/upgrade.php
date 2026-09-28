@@ -202,5 +202,116 @@ function xmldb_local_rollover_wizard_upgrade($oldversion) {
 
         upgrade_plugin_savepoint(true, 2025091500, 'local', 'rollover_wizard');
     }
+
+    if ($oldversion < 2026092801) {
+
+        // Define table local_rollover_wizard_processlog to be created.
+        $table = new xmldb_table('local_rollover_wizard_processlog');
+
+        // Adding fields to table local_rollover_wizard_processlog.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('taskid', XMLDB_TYPE_INTEGER, '20', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('logline', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys to table local_rollover_wizard_processlog.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+
+        // Adding indexes to table local_rollover_wizard_processlog.
+        $table->add_index('taskid_idx', XMLDB_INDEX_NOTUNIQUE, ['taskid']);
+
+        // Conditionally launch create table for local_rollover_wizard_processlog.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Rollover_wizard savepoint reached.
+        upgrade_plugin_savepoint(true, 2026092801, 'local', 'rollover_wizard');
+    }
+
+    if ($oldversion < 2026092802) {
+
+        $table = new xmldb_table('local_rollover_wizard_processlog');
+
+        // Add timemodified field.
+        $field = new xmldb_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'timecreated');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Consolidate any existing multiple rows per taskid into single rows FIRST,
+        // before creating the unique index (otherwise the unique index creation fails).
+        $taskids = $DB->get_fieldset_sql(
+            "SELECT taskid FROM {local_rollover_wizard_processlog}
+             GROUP BY taskid HAVING COUNT(*) > 1"
+        );
+        foreach ($taskids as $tid) {
+            $rows = $DB->get_records('local_rollover_wizard_processlog', ['taskid' => $tid], 'id ASC');
+            if (count($rows) <= 1) {
+                continue;
+            }
+            $first = reset($rows);
+            $loglines = [];
+            $lasttime = $first->timecreated;
+            foreach ($rows as $row) {
+                $loglines[] = $row->logline;
+                if ($row->timecreated > $lasttime) {
+                    $lasttime = $row->timecreated;
+                }
+            }
+            $first->logline = implode('', $loglines);
+            $first->timemodified = $lasttime;
+            $DB->update_record('local_rollover_wizard_processlog', $first);
+
+            // Delete all other rows for this taskid.
+            $ids = array_keys($rows);
+            array_shift($ids);
+            $DB->delete_records_list('local_rollover_wizard_processlog', 'id', $ids);
+        }
+
+        // Now change taskid index from non-unique to unique.
+        $oldindex = new xmldb_index('taskid_idx', XMLDB_INDEX_NOTUNIQUE, ['taskid']);
+        if ($dbman->index_exists($table, $oldindex)) {
+            $dbman->drop_index($table, $oldindex);
+        }
+
+        $uniqueindex = new xmldb_index('taskid_idx', XMLDB_INDEX_UNIQUE, ['taskid']);
+        if (!$dbman->index_exists($table, $uniqueindex)) {
+            $dbman->add_index($table, $uniqueindex);
+        }
+
+        upgrade_plugin_savepoint(true, 2026092802, 'local', 'rollover_wizard');
+    }
+
+    if ($oldversion < 2026092803) {
+
+        $table = new xmldb_table('local_rollover_wizard_processlog');
+
+        // Define field source to be added.
+        $field = new xmldb_field('source', XMLDB_TYPE_CHAR, '100', null, null, null, null, 'taskid');
+
+        // Conditionally launch add field source.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026092803, 'local', 'rollover_wizard');
+    }
+
+    if ($oldversion < 2026092804) {
+
+        $table = new xmldb_table('local_rollover_wizard_processlog');
+
+        // Define field source to be added (in case 2026092803 didn't run).
+        $field = new xmldb_field('source', XMLDB_TYPE_CHAR, '100', null, null, null, null, 'taskid');
+
+        // Conditionally launch add field source.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026092804, 'local', 'rollover_wizard');
+    }
+
     return true;
 }

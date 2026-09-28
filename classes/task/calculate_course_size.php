@@ -53,6 +53,16 @@ class calculate_course_size extends \core\task\scheduled_task {
 
         require_once($CFG->dirroot . '/local/rollover_wizard/lib.php');
 
+        // Use mtrace wrapper to capture all mtrace output to the process log table.
+        $CFG->mtrace_wrapper = 'local_rollover_wizard_mtrace_wrapper';
+
+        // Generate a unique run ID so each execution gets its own log row.
+        define('LOCAL_RW_TASKID', time() . rand(100, 999));
+        define('LOCAL_RW_SOURCE', 'calculate_course_size_task');
+
+        // Register error handler to capture PHP errors/warnings in the process log.
+        local_rollover_wizard_register_error_handler();
+
         mtrace('Rollover Wizard - Calculate Course Size Start');
         $courses = $DB->get_records_sql('SELECT * FROM {course} WHERE id > 1');
         foreach ($courses as $course) {
