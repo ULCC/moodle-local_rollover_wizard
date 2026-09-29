@@ -45,6 +45,16 @@ if (!$task) {
 // Run the specified task (this will output an error if it doesn't exist).
 // \core\task\manager::run_from_cli($task);
 
+// Use mtrace wrapper to capture all mtrace output to the process log table.
+$CFG->mtrace_wrapper = 'local_rollover_wizard_mtrace_wrapper';
+
+// Generate a unique run ID so each execution gets its own log row.
+define('LOCAL_RW_TASKID', time() . rand(100, 999));
+define('LOCAL_RW_SOURCE', 'workerfile.php');
+
+// Register error handler to capture PHP errors/warnings in the process log.
+local_rollover_wizard_register_error_handler();
+
 local_rollover_wizard_executerollover(2);
 
 /* Old Code */

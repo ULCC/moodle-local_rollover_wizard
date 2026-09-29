@@ -32,5 +32,13 @@ require_once($CFG->dirroot . '/local/rollover_wizard/lib.php');
 
 $taskid = $argv[1];
 
+// Use mtrace wrapper to capture all mtrace output to the process log table.
+define('LOCAL_RW_TASKID', $taskid);
+define('LOCAL_RW_SOURCE', 'rollover_wizard_background.php');
+$CFG->mtrace_wrapper = 'local_rollover_wizard_mtrace_wrapper';
+
+// Register error handler to capture PHP errors/warnings in the process log.
+local_rollover_wizard_register_error_handler();
+
 local_rollover_wizard_executerollover(1, $taskid);
 

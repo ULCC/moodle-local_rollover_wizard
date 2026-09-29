@@ -55,6 +55,16 @@ class replace_pluginfile_urls extends \core\task\scheduled_task {
 
         require_once($CFG->dirroot . '/local/rollover_wizard/lib.php');
 
+        // Use mtrace wrapper to capture all mtrace output to the process log table.
+        $CFG->mtrace_wrapper = 'local_rollover_wizard_mtrace_wrapper';
+
+        // Generate a unique run ID so each execution gets its own log row.
+        define('LOCAL_RW_TASKID', time() . rand(100, 999));
+        define('LOCAL_RW_SOURCE', 'replace_pluginfile_urls_task');
+
+        // Register error handler to capture PHP errors/warnings in the process log.
+        local_rollover_wizard_register_error_handler();
+
         mtrace('Starting pluginfile URL replacement with file copying...');
 
         $limit = (int) get_config('local_rollover_wizard', 'replace_url_limit');

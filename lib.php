@@ -260,12 +260,22 @@ function local_rollover_wizard_executerollover($mode = 1, $taskid = 0) {
             $DB->update_record('local_rollover_wizard_log', $rolloverqueue);
 
             $cmids = json_decode($rolloverqueue->cmids);
+            mtrace("--- Modules to rollover ---");
+            $modulelist = [];
             foreach ($cmids as $cmid) {
                 $cm = get_coursemodule_from_id('', $cmid);
-                if ($cm && $cm->modname === 'quiz') {
-                    $countquiz = 1;
+                if ($cm) {
+                    $modulelist[] = "{$cm->modname}:{$cm->id} (instance {$cm->instance})";
+                    if ($cm->modname === 'quiz') {
+                        $countquiz = 1;
+                    }
+                } else {
+                    $modulelist[] = "cmid:{$cmid} (not found)";
                 }
             }
+            mtrace("  CMIDs: " . implode(', ', $modulelist));
+            mtrace("--- End module list ---");
+
             // 1. Proccess activity section to target course.
             try {
                 // Create backup controller.
@@ -293,7 +303,9 @@ function local_rollover_wizard_executerollover($mode = 1, $taskid = 0) {
                     }
 
                     foreach ($curexcludedactivitytypes as $excludedactivity) {
-                        if (strpos($settingname, $excludedactivity) !== false) {
+                        $parts = explode('_', $settingname);
+                        $lastPart = end($parts);
+                        if ($lastPart === $excludedactivity) {
                             $shouldinclude = false;
                             break;
                         }
@@ -307,6 +319,24 @@ function local_rollover_wizard_executerollover($mode = 1, $taskid = 0) {
                 $bc->execute_plan();
                 $backupid = $bc->get_backupid();
                 $bc->destroy();
+
+                // Log source modules before restore.
+                mtrace("--- Source modules before restore ---");
+                $sourcemods = $DB->get_records('course_modules', ['course' => $sourcecourseid], 'id ASC');
+                foreach ($sourcemods as $sm) {
+                    $modname = $DB->get_field('modules', 'name', ['id' => $sm->module]);
+                    mtrace("  Source CM:{$sm->id} mod={$modname} instance={$sm->instance} section={$sm->section}");
+                }
+                mtrace("--- End source modules ---");
+
+                // Log target modules before restore.
+                mtrace("--- Target modules before restore ---");
+                $targetmodsbefore = $DB->get_records('course_modules', ['course' => $targetcourseid], 'id ASC');
+                foreach ($targetmodsbefore as $tm) {
+                    $modname = $DB->get_field('modules', 'name', ['id' => $tm->module]);
+                    mtrace("  Target CM:{$tm->id} mod={$modname} instance={$tm->instance} section={$tm->section}");
+                }
+                mtrace("--- End target modules before restore ---");
 
                 // Create restore controller.
                 $rc = new restore_controller(
@@ -325,6 +355,28 @@ function local_rollover_wizard_executerollover($mode = 1, $taskid = 0) {
                 $rc->execute_precheck();
                 $rc->execute_plan();
                 $rc->destroy();
+
+                // Log target modules after restore (newly created ones).
+                mtrace("--- Target modules after restore ---");
+                $targetmodsafter = $DB->get_records('course_modules', ['course' => $targetcourseid], 'id ASC');
+                $newmods = [];
+                foreach ($targetmodsafter as $tm) {
+                    $wasbefore = false;
+                    foreach ($targetmodsbefore as $tmb) {
+                        if ($tm->id == $tmb->id) {
+                            $wasbefore = true;
+                            break;
+                        }
+                    }
+                    $modname = $DB->get_field('modules', 'name', ['id' => $tm->module]);
+                    $status = $wasbefore ? '(existing)' : '(NEW)';
+                    mtrace("  Target CM:{$tm->id} {$status} mod={$modname} instance={$tm->instance} section={$tm->section}");
+                    if (!$wasbefore) {
+                        $newmods[] = $tm;
+                    }
+                }
+                mtrace("  Total new modules created: " . count($newmods));
+                mtrace("--- End target modules after restore ---");
             } catch (\Throwable $e) {
                 mtrace("import failed: " . $e->getMessage());
                 $note .= "import failed: " . $e->getMessage() . '<br>';
@@ -429,6 +481,14 @@ function local_rollover_wizard_executerollover($mode = 1, $taskid = 0) {
                         $rc->destroy();
 
                         // Course setting update.
+                        mtrace("--- Course settings update ---");
+                        mtrace("  Target course ID: {$targetcourseid}");
+                        mtrace("  Summary before: " . substr($oldtargetcourse->summary ?? '', 0, 100));
+                        mtrace("  Visible before: {$oldtargetcourse->visible}");
+                        mtrace("  Startdate before: {$oldtargetcourse->startdate}");
+                        mtrace("  Enddate before: {$oldtargetcourse->enddate}");
+                        mtrace("  Idnumber before: {$oldtargetcourse->idnumber}");
+
                         $targetcourse = $DB->get_record('course', ['id' => $targetcourseid]);
                         $targetcourse->summary = $oldtargetcourse->summary;
                         $targetcourse->summaryformat = $oldtargetcourse->summaryformat;
@@ -438,6 +498,13 @@ function local_rollover_wizard_executerollover($mode = 1, $taskid = 0) {
                         $targetcourse->enddate = $oldtargetcourse->enddate;
                         $targetcourse->idnumber = $oldtargetcourse->idnumber;
                         $DB->update_record('course', $targetcourse);
+
+                        mtrace("  Summary after: " . substr($targetcourse->summary ?? '', 0, 100));
+                        mtrace("  Visible after: {$targetcourse->visible}");
+                        mtrace("  Startdate after: {$targetcourse->startdate}");
+                        mtrace("  Enddate after: {$targetcourse->enddate}");
+                        mtrace("  Idnumber after: {$targetcourse->idnumber}");
+                        mtrace("--- End course settings update ---");
                         $targetcontext = \context_course::instance($targetcourse->id);
                         $sql = "SELECT itemid, filename
                         FROM {files}
@@ -1139,8 +1206,12 @@ function local_rollover_wizard_rewrite_summary_hyperlink_section($sourcesection,
             return $matches[0] . '__NOT_IMPORTED__';
         }
 
+        $newurl = str_replace("id={$oldcmid}", "id={$newcm->id}", $matches[0]);
+        mtrace("  Link rewritten: oldcmid={$oldcmid} -> newcmid={$newcm->id} (mod={$modname}, instance={$newinstance->id})");
+        mtrace("  Before: {$matches[0]}");
+        mtrace("  After:  {$newurl}");
 
-        return str_replace("id={$oldcmid}", "id={$newcm->id}", $matches[0]);
+        return $newurl;
     },
     $summary
     );
@@ -1168,6 +1239,7 @@ function local_rollover_wizard_rewrite_summary_hyperlink_section($sourcesection,
  */
 function local_rollover_wizard_update_internal_links($rolloverqueue, $enabled) {
     global $DB;
+    $includedsections = [];
     if ($rolloverqueue->rollovermode == 'previouscourse' && !empty($rolloverqueue->selectedsections)) {
         $includedsections = json_decode($rolloverqueue->selectedsections);
     }
@@ -1176,7 +1248,7 @@ function local_rollover_wizard_update_internal_links($rolloverqueue, $enabled) {
     }
 
     $sql = "SELECT id, section, course, name, summary, summaryformat, visible FROM {course_sections} ";
-    $sql .= "WHERE course = :courseid ORDER BY section ASC";
+    $sql .= "WHERE course = :courseid AND component IS NULL ORDER BY section ASC";
     $params = [
         'courseid' => $rolloverqueue->sourcecourseid,
     ];
@@ -1192,6 +1264,7 @@ function local_rollover_wizard_update_internal_links($rolloverqueue, $enabled) {
             [
                 'course' => $rolloverqueue->targetcourseid,
                 'section' => $sourcesection->section,
+                'component' => null,
             ]
         );
 
@@ -1201,8 +1274,13 @@ function local_rollover_wizard_update_internal_links($rolloverqueue, $enabled) {
         if (!in_array($sourcesection->section, $includedsections) && $rolloverqueue->rollovermode == 'previouscourse') {
             continue;
         }
-        mtrace("Summary from source course : {$sourcesection->summary}");
-        mtrace("Summary from target course : {$targetsection->summary}");
+
+        // Log section details before update.
+        mtrace("--- Section #{$sourcesection->section} update ---");
+        mtrace("  Source section ID: {$sourcesection->id} | Target section ID: {$targetsection->id}");
+        mtrace("  Source name: " . (empty($sourcesection->name) ? '(empty)' : $sourcesection->name));
+        mtrace("  Target name before: " . (empty($targetsection->name) ? '(empty)' : $targetsection->name));
+        mtrace("  Source visible: {$sourcesection->visible} | Target visible before: {$targetsection->visible}");
 
         if ($enabled) {
 
@@ -1225,6 +1303,11 @@ function local_rollover_wizard_update_internal_links($rolloverqueue, $enabled) {
         $targetsection->visible = $sourcesection->visible;
         $targetsection->timemodified = time();
         $DB->update_record('course_sections', $targetsection);
+
+        // Log section details after update.
+        mtrace("  Target name after: " . (empty($targetsection->name) ? '(empty)' : $targetsection->name));
+        mtrace("  Target visible after: {$targetsection->visible}");
+        mtrace("--- End section #{$sourcesection->section} ---");
 
         // Copy section images if course format is grid
         $sourcecourse = $DB->get_record('course', ['id' => $sourcecourseid]);
@@ -1289,6 +1372,154 @@ function get_activities_by_section($sectionid) {
     global $DB;
     $contents = $DB->get_records_sql("SELECT * FROM {course_modules} WHERE section = :sectionid", ['sectionid' => $sectionid]);
     return $contents;
+}
+
+/**
+ * Logs mtrace output to the process log table, appending to a single row per task.
+ *
+ * Stores each line of mtrace output generated during a rollover process into a
+ * single row in local_rollover_wizard_processlog, appending to the logline field.
+ * This gives one row per task with the complete log in one column.
+ *
+ * @param int $taskid The rollover task ID.
+ * @param string $logline The mtrace output line to log.
+ * @param string $source The file or entry point that triggered this process (e.g. 'rollover_wizard_background.php').
+ * @return void
+ */
+function local_rollover_wizard_log_process($taskid, $logline, $source = '') {
+    global $DB;
+
+    // Check if process logging is enabled.
+    // get_config() returns false if the setting has never been saved.
+    // Default to enabled in that case.
+    $enabled = get_config('local_rollover_wizard', 'enable_process_log');
+    if ($enabled !== false && empty($enabled)) {
+        return;
+    }
+
+    if (empty(trim($logline))) {
+        return;
+    }
+
+    $existing = $DB->get_record('local_rollover_wizard_processlog', ['taskid' => $taskid]);
+    $now = time();
+
+    if ($existing) {
+        // Append to existing log.
+        $existing->logline .= $logline;
+        $existing->timemodified = $now;
+        $DB->update_record('local_rollover_wizard_processlog', $existing);
+    } else {
+        // Create new log row.
+        $record = new \stdClass();
+        $record->taskid = $taskid;
+        $record->source = $source;
+        $record->logline = $logline;
+        $record->timecreated = $now;
+        $record->timemodified = $now;
+        $DB->insert_record('local_rollover_wizard_processlog', $record);
+    }
+}
+
+/**
+ * Custom error handler to capture PHP errors/warnings during rollover and log them.
+ *
+ * @param int $errno The level of the error raised.
+ * @param string $errstr The error message.
+ * @param string $errfile The filename that the error was raised in.
+ * @param int $errline The line number the error was raised in.
+ * @return bool False to let the standard error handler continue.
+ */
+function local_rollover_wizard_error_handler($errno, $errstr, $errfile, $errline) {
+    // Determine the error type string.
+    $errortypes = [
+        E_ERROR => 'Fatal Error',
+        E_WARNING => 'Warning',
+        E_PARSE => 'Parse Error',
+        E_NOTICE => 'Notice',
+        E_CORE_ERROR => 'Core Error',
+        E_CORE_WARNING => 'Core Warning',
+        E_COMPILE_ERROR => 'Compile Error',
+        E_COMPILE_WARNING => 'Compile Warning',
+        E_USER_ERROR => 'User Error',
+        E_USER_WARNING => 'User Warning',
+        E_USER_NOTICE => 'User Notice',
+        E_STRICT => 'Strict Notice',
+        E_RECOVERABLE_ERROR => 'Recoverable Error',
+        E_DEPRECATED => 'Deprecated',
+        E_USER_DEPRECATED => 'User Deprecated',
+    ];
+
+    $errtype = $errortypes[$errno] ?? 'Unknown Error';
+    $logline = "[PHP {$errtype}] {$errstr} in {$errfile} on line {$errline}\n";
+
+    // Determine taskid and source from constants.
+    $taskid = defined('LOCAL_RW_TASKID') ? LOCAL_RW_TASKID : 0;
+    $source = defined('LOCAL_RW_SOURCE') ? LOCAL_RW_SOURCE : '';
+    local_rollover_wizard_log_process($taskid, $logline, $source);
+
+    // Let the standard PHP error handler continue (false = use standard handler).
+    return false;
+}
+
+/**
+ * Mtrace wrapper callback for logging rollover process output.
+ *
+ * Designed to be used as $CFG->mtrace_wrapper. Logs each mtrace line to the
+ * process log table AND writes it to STDOUT so the user still sees progress.
+ *
+ * @param string $string The trace string.
+ * @param string $eol The end-of-line character(s).
+ * @return void
+ */
+function local_rollover_wizard_mtrace_wrapper($string, $eol = "\n") {
+    global $CFG;
+    $line = $string . $eol;
+
+    // Determine taskid and source from constants.
+    $taskid = defined('LOCAL_RW_TASKID') ? LOCAL_RW_TASKID : 0;
+    $source = defined('LOCAL_RW_SOURCE') ? LOCAL_RW_SOURCE : '';
+    local_rollover_wizard_log_process($taskid, $line, $source);
+
+    // Also write to STDOUT so the user sees progress.
+    if (defined('STDOUT')) {
+        fwrite(STDOUT, $line);
+    } else {
+        echo $line;
+    }
+    flush();
+}
+
+/**
+ * Register the error handler and shutdown function for capturing PHP errors during rollover.
+ *
+ * Call this at the start of any rollover entry point (background script, cron task, etc.)
+ * to ensure PHP errors and warnings are captured in the process log.
+ *
+ * @return void
+ */
+function local_rollover_wizard_register_error_handler() {
+    // Register error handler for warnings, notices, deprecations, etc.
+    set_error_handler('local_rollover_wizard_error_handler', E_ALL & ~E_DEPRECATED);
+
+    // Register shutdown function to catch fatal errors.
+    register_shutdown_function(function () {
+        $error = error_get_last();
+        if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+            $errortypes = [
+                E_ERROR => 'Fatal Error',
+                E_PARSE => 'Parse Error',
+                E_CORE_ERROR => 'Core Error',
+                E_COMPILE_ERROR => 'Compile Error',
+            ];
+            $errtype = $errortypes[$error['type']] ?? 'Fatal Error';
+            $logline = "[PHP {$errtype}] {$error['message']} in {$error['file']} on line {$error['line']}\n";
+
+            $taskid = defined('LOCAL_RW_TASKID') ? LOCAL_RW_TASKID : 0;
+            $source = defined('LOCAL_RW_SOURCE') ? LOCAL_RW_SOURCE : '';
+            local_rollover_wizard_log_process($taskid, $logline, $source);
+        }
+    });
 }
 
 /**

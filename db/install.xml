@@ -58,5 +58,21 @@
           <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
       </KEYS>
     </TABLE>
+    <TABLE NAME="local_rollover_wizard_processlog" COMMENT="Stores all mtrace output from a rollover process in a single row per task.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="taskid" TYPE="int" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="The rollover task ID (0 for scheduled tasks without a single taskid)"/>
+        <FIELD NAME="source" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false" COMMENT="The file or entry point that triggered this process (e.g. rollover_wizard_background.php, execute_rollover task)"/>
+        <FIELD NAME="logline" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Complete mtrace output for this task, appended as the process runs"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Timestamp when the first log line was recorded"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Timestamp when the log was last updated"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="taskid_idx" UNIQUE="true" FIELDS="taskid" COMMENT="Unique index so each task has exactly one row"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

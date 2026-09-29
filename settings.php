@@ -120,4 +120,12 @@ if ($hassiteconfig) {
     ]
     );
     $settings->add($element);
+
+    $element = new admin_setting_configcheckbox(
+        'local_rollover_wizard/enable_process_log',
+        'Enable process logging',
+        'Tick this checkbox to log all mtrace output and PHP errors/warnings from rollover processes to the local_rollover_wizard_processlog table.',
+        null
+    );
+    $settings->add($element);
 }

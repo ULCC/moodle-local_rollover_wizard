@@ -51,6 +51,17 @@ class execute_rollover extends \core\task\scheduled_task {
         global $CFG;
 
         require_once($CFG->dirroot . '/local/rollover_wizard/lib.php');
+
+        // Use mtrace wrapper to capture all mtrace output to the process log table.
+        $CFG->mtrace_wrapper = 'local_rollover_wizard_mtrace_wrapper';
+
+        // Generate a unique run ID so each execution gets its own log row.
+        define('LOCAL_RW_TASKID', time() . rand(100, 999));
+        define('LOCAL_RW_SOURCE', 'execute_rollover_task');
+
+        // Register error handler to capture PHP errors/warnings in the process log.
+        local_rollover_wizard_register_error_handler();
+
         local_rollover_wizard_executerollover();
 
         return true;

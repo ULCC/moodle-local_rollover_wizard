@@ -82,6 +82,10 @@ if (confirm_sesskey()) {
         // Execute it.
         shell_exec($command);
 
+        // Log the trigger event to the process log table.
+        $runid = time() . rand(100, 999);
+        local_rollover_wizard_log_process($runid, 'Rollover task triggered via runtaskajax.php', 'runtaskajax.php');
+
         echo "1";
     }
 }
